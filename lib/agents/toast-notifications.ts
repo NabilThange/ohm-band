@@ -131,6 +131,13 @@ export function showAgentChangeToast(agentId: string) {
  * Tool call display names and icons
  */
 const TOOL_DISPLAY_NAMES: Record<string, { name: string; icon: string }> = {
+    // New simplified tools
+    read: { name: 'Artifact Read', icon: '📖' },
+    write: { name: 'Artifact Updated', icon: '✍️' },
+    delete: { name: 'Artifact Deleted', icon: '🗑️' },
+    open_drawer: { name: 'Drawer Opened', icon: '📂' },
+    
+    // Legacy tools (for backward compatibility)
     update_context: { name: 'Context Updated', icon: '📝' },
     update_mvp: { name: 'MVP Updated', icon: '🎯' },
     update_prd: { name: 'PRD Updated', icon: '📋' },

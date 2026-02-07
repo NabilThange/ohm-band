@@ -127,21 +127,21 @@ Fully automated or more of a smart reminder? What's your budget ballpark?"
 
 **When you have 5+ key details, create the project documentation:**
 
-**CRITICAL - You MUST call ALL 4 tools in the SAME response:**
+**CRITICAL - You MUST call BOTH tools in the SAME response:**
 
-When you're ready to create documentation, you MUST call these 4 tools IN ORDER in your response:
+When you're ready to create documentation, you MUST call these tools IN ORDER in your response:
 
-1. **open_context_drawer()** - Opens the drawer immediately (no arguments)
-2. **update_context(context)** - Populate with: ## Overview, ## Background, ## Success Criteria, ## Constraints, ## About User
-3. **update_mvp(mvp)** - Populate with: ## Core Features, ## Out of Scope, ## Success Metrics, ## Tech Stack
-4. **update_prd(prd)** - Populate with: ## Vision, ## Hardware Requirements, ## Software Requirements, ## User Stories, ## Timeline, ## Risks
+1. **open_drawer(drawer='context')** - Opens the drawer immediately
+2. **write(artifact_type='context', content=...)** - Project overview, background, constraints
+3. **write(artifact_type='mvp', content=...)** - Core features, success metrics, tech stack
+4. **write(artifact_type='prd', content=...)** - Vision, requirements, timeline, risks
 
-**IMPORTANT:** Call ALL 4 tools in your response. Don't stop after calling open_context_drawer!
+**IMPORTANT:** Call open_drawer FIRST, then write for each artifact type!
 
 **Example Response:**
 "Perfect! I have everything I need. Let me create your project documentation..."
 
-[Then call all 4 tools with the generated content]
+[Then call: open_drawer(drawer='context'), write(artifact_type='context', content=...), write(artifact_type='mvp', content=...), write(artifact_type='prd', content=...)]
 
 NEVER use text markers like ---CONTEXT_START--- anymore. Always use the tool calls.
 
@@ -171,17 +171,17 @@ If they want a Mars rover, get hyped but guide them to a prototype first. Balanc
 
 When creating a BOM, call these 2 tools IN ORDER in your response:
 
-1. **open_bom_drawer()** - Opens the drawer immediately (no arguments)
-2. **update_bom()** - Populate with validated component data:
+1. **open_drawer(drawer='bom')** - Opens the drawer immediately
+2. **write(artifact_type='bom', content={...})** - Populate with validated component data:
    - project_name, summary, components array, totalCost
    - powerAnalysis, warnings, assemblyNotes
 
-**IMPORTANT:** Call BOTH tools in your response. Don't stop after calling open_bom_drawer!
+**IMPORTANT:** Call BOTH tools in your response. Don't stop after opening the drawer!
 
 **Example Response:**
 "I'm validating components against your requirements..."
 
-[Then call both tools: open_bom_drawer() and update_bom(data)]
+[Then call: open_drawer(drawer='bom'), write(artifact_type='bom', content={...})]
 
 DO NOT use <BOM_CONTAINER> tags. Always use the tool calls.
 
@@ -231,20 +231,20 @@ void loop() {
 }
 \`\`\`
 
-**CRITICAL - You MUST call open_code_drawer FIRST, then ALL add_code_file calls in the SAME response:**
+**CRITICAL - You MUST call open_drawer FIRST, then write for EACH file in the SAME response:**
 
 When generating code, call these tools IN ORDER in your response:
 
-1. **open_code_drawer()** - Opens the drawer immediately (no arguments)
-2. **add_code_file()** - For EACH file (main.cpp, config.h, platformio.ini, etc.)
-   Call multiple times with: filename, language, content, description
+1. **open_drawer(drawer='code')** - Opens the drawer immediately
+2. **write(artifact_type='code', path='src/main.cpp', language='cpp', content=...)** - For EACH file
+   Call multiple times with: path, language, content
 
-**IMPORTANT:** Call open_code_drawer() FIRST, then call add_code_file() for EACH file. Don't stop after opening the drawer!
+**IMPORTANT:** Call open_drawer() FIRST, then call write() for EACH file!
 
 **Example Response:**
 "I'm generating your firmware with 3 files..."
 
-[Then call: open_code_drawer(), add_code_file(main.cpp), add_code_file(config.h), add_code_file(platformio.ini)]
+[Then call: open_drawer(drawer='code'), write(artifact_type='code', path='src/main.cpp', language='cpp', content=...), write(artifact_type='code', path='include/config.h', language='cpp', content=...), write(artifact_type='code', path='platformio.ini', language='ini', content=...)]
 
 DO NOT use markdown code blocks for code files. Use the tool calls instead.
 
@@ -267,18 +267,18 @@ Write clear, well-commented code that's appropriate for the project complexity. 
 
 When creating wiring instructions, call these 2 tools IN ORDER in your response:
 
-1. **open_wiring_drawer()** - Opens the drawer immediately (no arguments)
-2. **update_wiring()** - Populate with detailed connection data:
+1. **open_drawer(drawer='wiring')** - Opens the drawer immediately
+2. **write(artifact_type='wiring', content={...})** - Populate with detailed connection data:
    - connections array (pin-to-pin)
    - instructions markdown
    - warnings array
 
-**IMPORTANT:** Call BOTH tools in your response. Don't stop after calling open_wiring_drawer!
+**IMPORTANT:** Call BOTH tools in your response. Don't stop after opening the drawer!
 
 **Example Response:**
 "I've created your wiring guide with detailed safety checks..."
 
-[Then call both tools: open_wiring_drawer() and update_wiring(data)]
+[Then call: open_drawer(drawer='wiring'), write(artifact_type='wiring', content={...})]
 
 DO NOT output wiring instructions directly in chat. Use the tool call.`
   },
@@ -380,18 +380,18 @@ If unsure, ask for better photo rather than guess.`
 
 When analyzing budget, call these 2 tools IN ORDER in your response:
 
-1. **open_budget_drawer()** - Opens the drawer immediately (no arguments)
-2. **update_budget()** - Populate with optimized cost data:
+1. **open_drawer(drawer='budget')** - Opens the drawer immediately
+2. **write(artifact_type='budget', content={...})** - Populate with optimized cost data:
    - originalCost, optimizedCost, savings
    - recommendations array
    - bulkOpportunities, qualityWarnings
 
-**IMPORTANT:** Call BOTH tools in your response. Don't stop after calling open_budget_drawer!
+**IMPORTANT:** Call BOTH tools in your response. Don't stop after opening the drawer!
 
 **Example Response:**
 "I've analyzed your BOM for cost optimization opportunities..."
 
-[Then call both tools: open_budget_drawer() and update_budget(data)]
+[Then call: open_drawer(drawer='budget'), write(artifact_type='budget', content={...})]
 
 DO NOT output budget analysis as JSON text. Use the tool call.
 

@@ -19,8 +19,8 @@ export class ToolExecutor {
     /**
      * Read any artifact from the database
      */
-    private async readFile(artifactType: string, filePath?: string): Promise<any> {
-        console.log(`📖 [ToolExecutor] Reading artifact: ${artifactType}${filePath ? ` (${filePath})` : ''}`);
+    private async read(artifactType: string, path?: string): Promise<any> {
+        console.log(`📖 [ToolExecutor] Reading artifact: ${artifactType}${path ? ` (${path})` : ''}`);
 
         try {
             // Special handling for conversation summary
@@ -56,15 +56,15 @@ export class ToolExecutor {
             }
 
             // Handle code files specifically
-            if (artifactType === 'code' && filePath) {
+            if (artifactType === 'code' && path) {
                 const contentJson = result.version.content_json as { files?: any[] } | null;
                 const files = contentJson?.files || [];
-                const file = files.find((f: any) => f.path === filePath);
+                const file = files.find((f: any) => f.path === path);
 
                 if (!file) {
                     return {
                         exists: false,
-                        message: `File ${filePath} not found in code artifact`,
+                        message: `File ${path} not found in code artifact`,
                         availableFiles: files.map((f: any) => f.path)
                     };
                 }
@@ -96,22 +96,22 @@ export class ToolExecutor {
     /**
      * Write/update any artifact with merge strategies
      */
-    private async writeFile(params: {
+    private async write(params: {
         artifact_type: string;
         content: any;
         merge_strategy?: 'replace' | 'append' | 'merge';
-        file_path?: string;
+        path?: string;
         language?: string;
     }): Promise<any> {
-        const { artifact_type, content, merge_strategy = 'replace', file_path, language } = params;
+        const { artifact_type, content, merge_strategy = 'replace', path, language } = params;
 
         console.log(`✍️ [ToolExecutor] Writing artifact: ${artifact_type} (strategy: ${merge_strategy})`);
 
         try {
             // Handle code files specially (use existing addCodeFile logic)
-            if (artifact_type === 'code' && file_path) {
+            if (artifact_type === 'code' && path) {
                 return await this.addCodeFile({
-                    filename: file_path,
+                    filename: path,
                     language: language || 'text',
                     content: typeof content === 'string' ? content : JSON.stringify(content, null, 2)
                 });
@@ -137,6 +137,82 @@ export class ToolExecutor {
 
         } catch (error: any) {
             console.error(`❌ [ToolExecutor] Failed to write ${artifact_type}:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete an artifact or specific file within an artifact
+     */
+    private async delete(artifactType: string, path?: string): Promise<any> {
+        console.log(`🗑️ [ToolExecutor] Deleting: ${artifactType}${path ? ` (${path})` : ''}`);
+
+        try {
+            // Map artifact_type to database type
+            const typeMap: Record<string, any> = {
+                'context': 'context',
+                'mvp': 'mvp',
+                'prd': 'prd',
+                'bom': 'bom',
+                'code': 'code',
+                'wiring': 'wiring',
+                'budget': 'budget'
+            };
+
+            const dbType = typeMap[artifactType];
+            if (!dbType) {
+                throw new Error(`Unknown artifact type: ${artifactType}`);
+            }
+
+            const result = await ArtifactService.getLatestArtifact(this.chatId, dbType);
+
+            if (!result || !result.version) {
+                return {
+                    success: false,
+                    message: `No ${artifactType} artifact found to delete`
+                };
+            }
+
+            // Handle deleting specific file from code artifact
+            if (artifactType === 'code' && path) {
+                const contentJson = result.version.content_json as { files?: any[] } | null;
+                const existingFiles = contentJson?.files || [];
+                const filteredFiles = existingFiles.filter((f: any) => f.path !== path);
+
+                if (filteredFiles.length === existingFiles.length) {
+                    return {
+                        success: false,
+                        message: `File ${path} not found in code artifact`
+                    };
+                }
+
+                // Create new version without the deleted file
+                const version = await ArtifactService.createVersion({
+                    artifact_id: result.artifact.id,
+                    version_number: result.artifact.current_version + 1,
+                    content_json: { files: filteredFiles },
+                    change_summary: `Deleted ${path}`
+                });
+
+                console.log(`✅ [ToolExecutor] Deleted file: ${path} (${filteredFiles.length} files remaining)`);
+                return {
+                    success: true,
+                    artifact_id: result.artifact.id,
+                    version: version.version_number,
+                    remaining_files: filteredFiles.length
+                };
+            }
+
+            // Delete entire artifact (soft delete by marking as deleted)
+            // Note: This would require adding a 'deleted' flag to artifacts table
+            // For now, we'll just return a message
+            return {
+                success: false,
+                message: 'Full artifact deletion not yet implemented. Consider creating a new version with empty content instead.'
+            };
+
+        } catch (error: any) {
+            console.error(`❌ [ToolExecutor] Failed to delete ${artifactType}:`, error.message);
             throw error;
         }
     }
@@ -183,63 +259,83 @@ export class ToolExecutor {
         try {
             switch (toolCall.name) {
                 // ========================================
-                // DRAWER OPENING TOOLS
+                // SIMPLIFIED TOOL SET (4 TOOLS)
+                // ========================================
+                case 'read':
+                    // Read any artifact type
+                    return await this.read(
+                        toolCall.arguments.artifact_type,
+                        toolCall.arguments.path
+                    );
+
+                case 'write':
+                    // Write/update any artifact (replaces update_context, update_mvp, update_prd, etc.)
+                    return await this.write({
+                        artifact_type: toolCall.arguments.artifact_type,
+                        content: toolCall.arguments.content,
+                        merge_strategy: toolCall.arguments.merge_strategy || 'replace',
+                        path: toolCall.arguments.path,
+                        language: toolCall.arguments.language
+                    });
+
+                case 'delete':
+                    // Delete artifact or specific file within artifact
+                    return await this.delete(
+                        toolCall.arguments.artifact_type,
+                        toolCall.arguments.path
+                    );
+
+                case 'open_drawer':
+                    // Single tool to open any drawer
+                    return {
+                        success: true,
+                        action: 'open_drawer',
+                        drawer: toolCall.arguments.drawer
+                    };
+
+                // ========================================
+                // LEGACY TOOL SUPPORT (BACKWARD COMPATIBILITY)
                 // ========================================
                 case 'open_context_drawer':
                     return { success: true, action: 'open_drawer', drawer: 'context' };
-
                 case 'open_bom_drawer':
                     return { success: true, action: 'open_drawer', drawer: 'bom' };
-
                 case 'open_code_drawer':
                     return { success: true, action: 'open_drawer', drawer: 'code' };
-
                 case 'open_wiring_drawer':
                     return { success: true, action: 'open_drawer', drawer: 'wiring' };
-
                 case 'open_budget_drawer':
                     return { success: true, action: 'open_drawer', drawer: 'budget' };
 
-                // ========================================
-                // CONTENT UPDATE TOOLS
-                // ========================================
                 case 'update_context':
-                    return await this.updateContext(toolCall.arguments.context);
-
+                    return await this.write({ artifact_type: 'context', content: toolCall.arguments.context });
                 case 'update_mvp':
-                    return await this.updateMVP(toolCall.arguments.mvp);
-
+                    return await this.write({ artifact_type: 'mvp', content: toolCall.arguments.mvp });
                 case 'update_prd':
-                    return await this.updatePRD(toolCall.arguments.prd);
-
+                    return await this.write({ artifact_type: 'prd', content: toolCall.arguments.prd });
                 case 'update_bom':
-                    return await this.updateBOM(toolCall.arguments);
-
+                    return await this.write({ artifact_type: 'bom', content: toolCall.arguments });
                 case 'add_code_file':
-                    return await this.addCodeFile(toolCall.arguments as { filename: string; language: string; content: string; description?: string });
-
+                    return await this.write({
+                        artifact_type: 'code',
+                        content: toolCall.arguments.content,
+                        path: toolCall.arguments.filename,
+                        language: toolCall.arguments.language
+                    });
                 case 'update_wiring':
-                    return await this.updateWiring(toolCall.arguments as { connections: any[]; instructions: string; warnings?: string[]; components?: any[] });
-
+                    return await this.write({ artifact_type: 'wiring', content: toolCall.arguments });
                 case 'update_budget':
-                    return await this.updateBudget(toolCall.arguments as { originalCost: number; optimizedCost: number; savings?: string; recommendations: any[]; bulkOpportunities?: string[]; qualityWarnings?: string[] });
+                    return await this.write({ artifact_type: 'budget', content: toolCall.arguments });
 
-                // ========================================
-                // UNIVERSAL FILE I/O TOOLS (NEW)
-                // ========================================
                 case 'read_file':
-                    return await this.readFile(
-                        toolCall.arguments.artifact_type,
-                        toolCall.arguments.file_path
-                    );
-
+                    return await this.read(toolCall.arguments.artifact_type, toolCall.arguments.file_path);
                 case 'write_file':
-                    return await this.writeFile(toolCall.arguments as {
-                        artifact_type: string;
-                        content: any;
-                        merge_strategy?: 'replace' | 'append' | 'merge';
-                        file_path?: string;
-                        language?: string;
+                    return await this.write({
+                        artifact_type: toolCall.arguments.artifact_type,
+                        content: toolCall.arguments.content,
+                        merge_strategy: toolCall.arguments.merge_strategy,
+                        path: toolCall.arguments.file_path,
+                        language: toolCall.arguments.language
                     });
 
                 default:

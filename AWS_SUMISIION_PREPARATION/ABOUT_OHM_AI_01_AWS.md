@@ -103,7 +103,7 @@
     | **Temperature** | 0.7 |
     | **Max Tokens** | 2000 |
     | **Role** | Quick-start wizard - transforms vague ideas into concrete project direction |
-    | **Tools** | `update_context`, `update_mvp`, `update_prd` |
+    | **Tools** | `read`, `write`, `open_drawer` |
 
     ### 3. Conversational Agent (Subsequent Messages)
     | Property | Value |
@@ -112,7 +112,7 @@
     | **Temperature** | 0.8 (higher for creative conversation) |
     | **Max Tokens** | 3000 |
     | **Role** | The idea-to-blueprint translator - guides user through requirements |
-    | **Tools** | `update_context`, `update_mvp`, `update_prd` |
+    | **Tools** | `read`, `write`, `open_drawer` |
 
     ### 4. BOM Generator
     | Property | Value |
@@ -121,7 +121,7 @@
     | **Temperature** | 0.2 (low for precision) |
     | **Max Tokens** | 25000 |
     | **Role** | Creates validated Bill of Materials with voltage/current checks |
-    | **Tools** | `update_bom` |
+    | **Tools** | `read`, `write`, `open_drawer` |
 
     ### 5. Code Generator
     | Property | Value |
@@ -130,7 +130,7 @@
     | **Temperature** | 0.2 (low for consistent code) |
     | **Max Tokens** | 16000 |
     | **Role** | Writes production-ready firmware (Arduino C++, MicroPython) |
-    | **Tools** | `add_code_file` |
+    | **Tools** | `read`, `write`, `open_drawer` |
 
     ### 6. Wiring Specialist
     | Property | Value |
@@ -139,7 +139,7 @@
     | **Temperature** | 0.15 (very low for precision) |
     | **Max Tokens** | 4000 |
     | **Role** | Creates step-by-step wiring instructions with safety warnings |
-    | **Tools** | `update_wiring` |
+    | **Tools** | `read`, `write`, `open_drawer` |
 
     ### 7. Circuit Verifier (Vision Agent)
     | Property | Value |
@@ -166,7 +166,7 @@
 | **Temperature** | 0.3 |
 | **Max Tokens** | 25000 |
 | **Role** | Finds cost savings without sacrificing quality |
-| **Tools** | `update_budget` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 ### 10. Conversation Summarizer
 | Property | Value |
@@ -202,20 +202,23 @@
     - ✅ **Tool Calling** - agents can call structured tools via Bedrock function calling
     - ✅ **SSE (Server-Sent Events)** for streaming (`app/api/agents/chat/route.ts`)
 
-    ## 3. 🛠️ Tool System (Fully Implemented)
-    **Verified from `lib/agents/tools.ts` and `lib/agents/tool-executor.ts`:**
+    ## Tool System (Fully Implemented - Simplified 4-Tool Interface)
+**Verified from `lib/agents/tools.ts` and `lib/agents/tool-executor.ts`:**
 
-    | Tool | Description | Used By |
-    |------|-------------|---------|
-    | `update_context` | Project context (Overview, Background, Constraints) | Conversational, ProjectInitializer |
-    | `update_mvp` | MVP specification (Core Features, Success Metrics) | Conversational, ProjectInitializer |
-    | `update_prd` | Product Requirements Document | Conversational, ProjectInitializer |
-    | `update_bom` | Bill of Materials with components and pricing | BOM Generator |
-    | `add_code_file` | Add code files (accumulates multiple files) | Code Generator |
-    | `update_wiring` | Wiring connections and instructions | Wiring Specialist |
-    | `update_budget` | Budget optimization recommendations | Budget Optimizer |
-    | `read_file` | Read existing artifacts | All agents |
-    | `write_file` | Universal file writing with merge strategies | All agents |
+The system uses a simplified 4-tool interface that replaces 15 specialized tools:
+
+| Tool | Description | Parameters |
+|------|-------------|-----------|
+| `read` | Read any artifact (context, mvp, prd, bom, code, wiring, budget, conversation_summary) | artifact_type, path (optional) |
+| `write` | Create/update any artifact with merge strategies (replace/append/merge) | artifact_type, content, merge_strategy, path, language |
+| `delete` | Delete artifact or specific file within artifact | artifact_type, path (optional) |
+| `open_drawer` | Open any drawer (context, bom, code, wiring, budget) | drawer |
+
+**Legacy Tools (Backward Compatible):**
+All old tool names still work and route to the new simplified tools:
+- Drawer tools: `open_context_drawer`, `open_bom_drawer`, `open_code_drawer`, `open_wiring_drawer`, `open_budget_drawer`
+- Update tools: `update_context`, `update_mvp`, `update_prd`, `update_bom`, `add_code_file`, `update_wiring`, `update_budget`
+- File I/O tools: `read_file`, `write_file`
 
     ## 4. 📦 Drawer System (Fully Implemented)
     **Verified from `components/tools/` directory:**

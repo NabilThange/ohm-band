@@ -273,13 +273,20 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
 
                             // 2. Map tool to drawer and dispatch open event
                             const toolDrawerMap: Record<string, string> = {
-                                // Open drawer tools (called BEFORE content generation)
+                                // New simplified tools
+                                'open_drawer': 'drawer',
+                                'read': 'read',
+                                'write': 'write',
+                                'delete': 'delete',
+                                
+                                // Legacy drawer opening tools
                                 'open_context_drawer': 'context',
                                 'open_bom_drawer': 'bom',
                                 'open_code_drawer': 'code',
                                 'open_wiring_drawer': 'wiring',
                                 'open_budget_drawer': 'budget',
-                                // Update tools (called AFTER content generation)
+                                
+                                // Legacy update tools
                                 'update_context': 'context',
                                 'update_mvp': 'context',
                                 'update_prd': 'context',

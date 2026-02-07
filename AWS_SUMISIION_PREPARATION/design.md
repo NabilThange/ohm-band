@@ -519,96 +519,30 @@ DO NOT use <BOM_CONTAINER> tags. Always use the tool calls.`
 
 **Tool Categories:**
 
-1. **Drawer Opening Tools** (No arguments, UI notification)
-   - `open_context_drawer()`
-   - `open_bom_drawer()`
-   - `open_code_drawer()`
-   - `open_wiring_drawer()`
-   - `open_budget_drawer()`
+1. **Drawer Opening Tool** (Single unified tool)
+   - `open_drawer(drawer: 'context' | 'bom' | 'code' | 'wiring' | 'budget')`
 
-2. **Content Update Tools** (With data, DB persistence)
-   - `update_context(context: string)`
-   - `update_mvp(mvp: string)`
-   - `update_prd(prd: string)`
-   - `update_bom(bomData: BOMData)`
-   - `add_code_file(filename, language, content, description)`
-   - `update_wiring(connections, instructions, warnings)`
-   - `update_budget(originalCost, optimizedCost, recommendations)`
+2. **Content Update Tool** (Single unified tool)
+   - `write(artifact_type, content, merge_strategy?, path?, language?)`
 
-3. **File I/O Tools** (Read/write artifacts)
-   - `read_file(artifact_type, file_path?)`
-   - `write_file(artifact_type, content, merge_strategy?, file_path?, language?)`
+3. **Content Read Tool** (Single unified tool)
+   - `read(artifact_type, path?)`
 
-**Tool Schema Example:**
-
-```typescript
-update_bom: {
-  name: "update_bom",
-  description: "Update the Bill of Materials drawer with validated component list...",
-  parameters: {
-    type: "object",
-    properties: {
-      project_name: { type: "string" },
-      summary: { type: "string" },
-      components: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            partNumber: { type: "string" },
-            quantity: { type: "number" },
-            voltage: { type: "string" },
-            current: { type: "string" },
-            estimatedCost: { type: "number" },
-            supplier: { type: "string" },
-            link: { type: "string" },
-            notes: { type: "string" },
-            alternatives: { type: "array", items: { type: "string" } }
-          },
-          required: ["name", "partNumber", "quantity"]
-        }
-      },
-      totalCost: { type: "number" },
-      powerAnalysis: { type: "object" },
-      warnings: { type: "array", items: { type: "string" } },
-      assemblyNotes: { type: "array", items: { type: "string" } }
-    },
-    required: ["project_name", "components", "totalCost"]
-  }
-}
-```
+4. **Content Delete Tool** (Single unified tool)
+   - `delete(artifact_type, path?)`
 
 **Tool Assignment by Agent:**
 
 ```typescript
 export function getToolsForAgent(agentType: string): any[] {
   const toolMap: Record<string, string[]> = {
-    conversational: [
-      'read_file', 'write_file',
-      'open_context_drawer', 'update_context', 'update_mvp', 'update_prd'
-    ],
-    projectInitializer: [
-      'read_file', 'write_file',
-      'open_context_drawer', 'update_context', 'update_mvp', 'update_prd'
-    ],
-    bomGenerator: [
-      'read_file', 'write_file',
-      'open_bom_drawer', 'update_bom'
-    ],
-    codeGenerator: [
-      'read_file', 'write_file',
-      'open_code_drawer', 'add_code_file'
-    ],
-    wiringDiagram: [
-      'read_file', 'write_file',
-      'open_wiring_drawer', 'update_wiring'
-    ],
-    budgetOptimizer: [
-      'read_file', 'write_file',
-      'open_budget_drawer', 'update_budget'
-    ],
-    conversationSummarizer: ['read_file'],
+    conversational: ['read', 'write', 'open_drawer'],
+    projectInitializer: ['read', 'write', 'open_drawer'],
+    bomGenerator: ['read', 'write', 'open_drawer'],
+    codeGenerator: ['read', 'write', 'open_drawer'],
+    wiringDiagram: ['read', 'write', 'open_drawer'],
+    budgetOptimizer: ['read', 'write', 'open_drawer'],
+    conversationSummarizer: ['read'],
     orchestrator: [],
     circuitVerifier: [],
     datasheetAnalyzer: []
