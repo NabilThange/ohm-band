@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import ToolDrawer from './ToolDrawer'
-import { ZoomIn, ZoomOut, Download, RefreshCw, Loader2, AlertTriangle, X } from 'lucide-react'
+import { XIcon } from '@/components/ui/animated-icons'
+import { ZoomIn, ZoomOut, Download, RefreshCw, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LottieLoader } from '@/components/ui/lottie-loader'
 import { DiagramDisplay } from '@/components/diagrams/DiagramDisplay'

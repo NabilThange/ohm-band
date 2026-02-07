@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { AlertCircle, Zap, ArrowLeft } from "lucide-react"
+import { ArrowLeftIcon } from "@/components/ui/animated-icons"
+import { AlertCircle, Zap } from "lucide-react"
 import { useState } from "react"
 
 const Google = ({ ...props }) => (
@@ -58,7 +59,7 @@ export default function LoginPage() {
                 <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px]">
                     {/* Back Button */}
                     <Link href="/" className="flex items-center gap-2 text-sm text-foreground/60 hover:text-foreground transition w-fit">
-                        <ArrowLeft size={16} />
+                        <ArrowLeftIcon size={16} />
                         Back to home
                     </Link>
 

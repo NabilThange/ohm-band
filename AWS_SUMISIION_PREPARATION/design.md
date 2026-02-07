@@ -7,17 +7,16 @@ OHM is an AI-powered IoT/Hardware Development IDE that transforms natural langua
 **Core Architecture Pattern:** Sequential Assembly Line with Dynamic Routing
 - User describes project → Orchestrator classifies intent → Specialist agent executes → Artifacts persisted → UI updates in real-time
 
-**Technology Stack:**
-- **Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS
-- **Backend:** AWS Lambda + API Gateway (Serverless)
-- **Database:** Amazon DynamoDB (NoSQL with Streams)
-- **AI Service:** Amazon Bedrock (Claude 3.5 Sonnet & Opus)
-- **Streaming:** Server-Sent Events (SSE)
-- **Real-time:** AWS AppSync (GraphQL subscriptions)
-- **Storage:** Amazon S3 (File uploads)
+**AWS-Native Technology Stack:**
+- **Frontend:** Next.js 15.1.6, React 19, TypeScript, Tailwind CSS
+- **Backend:** AWS Lambda Functions (Serverless)
+- **Database:** Amazon DynamoDB with Global Secondary Indexes
+- **AI Service:** Amazon Bedrock (Claude 3.5 Sonnet, Claude 3 Opus)
+- **Streaming:** Bedrock ConverseStream API for real-time responses
+- **Real-time:** AWS AppSync with DynamoDB Streams
+- **Storage:** Amazon S3 with presigned URLs (File uploads)
 - **Hosting:** AWS Amplify (CI/CD + Hosting)
-- **Monitoring:** Amazon CloudWatch (Logs + Metrics)
-- **Code Assistance:** Amazon Q Developer
+- **Monitoring:** Amazon CloudWatch + X-Ray
 
 ## Architecture
 
@@ -33,18 +32,18 @@ OHM is an AI-powered IoT/Hardware Development IDE that transforms natural langua
 │         │                  │                  │                   │
 │         └──────────────────┴──────────────────┘                   │
 │                            │                                      │
-│                    SSE Stream (Real-time)                        │
+│                    AppSync GraphQL Subscriptions (Real-time)     │
 └────────────────────────────┼────────────────────────────────────┘
                              │
 ┌────────────────────────────┼────────────────────────────────────┐
-│              API LAYER (AWS Lambda + API Gateway)                │
+│              API LAYER (AWS Lambda Functions)                    │
 │  ┌──────────────────────────┴──────────────────────────┐        │
 │  │  /api/agents/chat (POST) - Lambda Function          │        │
-│  │  - Receives user message via API Gateway            │        │
+│  │  - Receives user message via HTTP POST              │        │
 │  │  - Creates SSE stream                               │        │
 │  │  - Invokes AssemblyLineOrchestrator                 │        │
 │  │  - Streams: text chunks, agent_selected,            │        │
-│  │    tool_call, key_rotation, metadata                │        │
+│  │    tool_call, throttling_retry, metadata            │        │
 │  └─────────────────────────┬───────────────────────────┘        │
 └────────────────────────────┼────────────────────────────────────┘
                              │
@@ -60,16 +59,16 @@ OHM is an AI-powered IoT/Hardware Development IDE that transforms natural langua
 │               │                                                  │
 │  ┌────────────┴─────────────────────────────────────────────┐  │
 │  │  AgentRunner (with BedrockClient)                        │  │
-│  │  - Executes individual agents via Bedrock                │  │
+│  │  - Executes individual agents via Amazon Bedrock         │  │
 │  │  - Handles streaming responses (ConverseStream API)      │  │
 │  │  - Manages tool calls                                    │  │
-│  │  - Automatic failover on quota errors                    │  │
+│  │  - Automatic retry with exponential backoff             │  │
 │  └────────────┬─────────────────────────────────────────────┘  │
 │               │                                                  │
 │  ┌────────────┴─────────────────────────────────────────────┐  │
 │  │  BedrockClient (Singleton)                               │  │
-│  │  - AWS SDK for JavaScript v3 (Bedrock Runtime)           │  │
-│  │  - Manages Bedrock API connections                       │  │
+│  │  - AWS SDK v3 with Bedrock Runtime                      │  │
+│  │  - Manages API connections and throttling               │  │
 │  │  - Handles model invocations and streaming              │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
@@ -108,35 +107,30 @@ OHM is an AI-powered IoT/Hardware Development IDE that transforms natural langua
 ┌────────────────────────────┼────────────────────────────────────┐
 │                DATA LAYER (Amazon DynamoDB)                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ chats        │  │ messages     │  │chat_sessions │          │
+│  │ ohm-chats    │  │ ohm-messages │  │ohm-sessions  │          │
 │  │ (Projects)   │  │ (History)    │  │ (State)      │          │
-│  │ PK: chat_id  │  │ PK: msg_id   │  │ PK: sess_id  │          │
-│  │ GSI: user_id │  │ GSI: chat_id │  │ FK: chat_id  │          │
+│  │ PK: id (UUID)│  │ PK: id (UUID)│  │ PK: id (UUID)│          │
+│  │ GSI: user_id │  │ GSI: chat_id │  │ GSI: chat_id │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ artifacts    │  │artifact_vers │  │ components   │          │
+│  │ohm-artifacts │  │ohm-art-vers  │  │ ohm-parts    │          │
 │  │ (Containers) │  │ (Versions)   │  │ (BOM Items)  │          │
-│  │ PK: art_id   │  │ PK: ver_id   │  │ PK: comp_id  │          │
-│  │ GSI: chat_id │  │ GSI: art_id  │  │ GSI: chat_id │          │
+│  │ PK: id (UUID)│  │ PK: id (UUID)│  │ PK: id (UUID)│          │
+│  │ GSI: chat_id │  │ GSI: art_id  │  │ GSI: proj_id │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
 │                                                                   │
-│  Real-time: DynamoDB Streams → AWS AppSync GraphQL Subscriptions│
-│  Storage: Amazon S3 for file uploads (circuit photos, PDFs)     │
+│  Real-time: DynamoDB Streams → AppSync GraphQL subscriptions     │
+│  Storage: Amazon S3 for file uploads (circuit photos, PDFs)      │
 └──────────────────────────────────────────────────────────────────┘
                              │
 ┌────────────────────────────┼────────────────────────────────────┐
-│                    AWS AI SERVICES                               │
+│                    AI SERVICES (Amazon Bedrock)                  │
 │  ┌──────────────────────────┴──────────────────────────┐        │
-│  │  Amazon Bedrock (Foundation Models)                  │        │
-│  │  - Claude 3.5 Sonnet (anthropic.claude-3-5-sonnet)  │        │
-│  │  - Claude 3 Opus (anthropic.claude-3-opus)          │        │
-│  │  - ConverseStream API for real-time streaming       │        │
-│  │  - Tool use for structured function calling         │        │
-│  └──────────────────────────────────────────────────────┘        │
-│  ┌──────────────────────────────────────────────────────┐        │
-│  │  Amazon Q Developer (Code Assistance)                │        │
-│  │  - Real-time code completion and generation          │        │
-│  │  - Security scanning and bug detection              │        │
+│  │  Amazon Bedrock Runtime                              │        │
+│  │  - Claude 3.5 Sonnet (anthropic.claude-4-5-sonnet) │        │
+│  │  - Claude 3 Opus (anthropic.claude-4-opus)          │        │
+│  │  - ConverseStream API for real-time responses       │        │
+│  │  - Function calling for structured tool use         │        │
 │  └──────────────────────────────────────────────────────┘        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -349,105 +343,100 @@ for (const toolCall of toolCalls) {
 }
 ```
 
-### 3. BedrockClient (Singleton)
+### 3. BytezClient (Singleton)
 
 **Location:** `lib/agents/orchestrator.ts`
 
 **Responsibilities:**
-- Maintain singleton Bedrock Runtime client instance
-- Connect to Amazon Bedrock service
-- Handle AWS credentials and region configuration
+- Maintain singleton OpenAI client instance with BYTEZ endpoint
+- Connect to BYTEZ API service
+- Handle API key rotation and failover
 - Thread-safe instance management
 
 **Implementation:**
 
 ```typescript
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import OpenAI from "openai";
 
-class BedrockClient {
-  private static instance: BedrockRuntimeClient | null = null
-  private static isRefreshing: boolean = false
-  
-  static async getInstance(forceRefresh: boolean = false): Promise<BedrockRuntimeClient> {
-    // Wait if another request is refreshing
-    while (this.isRefreshing) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
+class BytezClient {
+    private static instance: OpenAI | null = null
+    private static currentKey: string | null = null
+    private static isRefreshing: boolean = false
     
-    if (!this.instance || forceRefresh) {
-      this.isRefreshing = true
-      try {
-        this.instance = new BedrockRuntimeClient({
-          region: process.env.AWS_REGION || "us-east-1",
-          credentials: {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-          },
-        });
-        console.log(`🔌 BedrockClient connected to region: ${process.env.AWS_REGION}`);
-      } finally {
-        this.isRefreshing = false
-      }
+    static async getInstance(forceRefresh: boolean = false): Promise<OpenAI> {
+        // Wait if another request is refreshing
+        while (this.isRefreshing) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        
+        const keyManager = KeyManager.getInstance();
+        const activeKey = keyManager.getCurrentKey();
+
+        if (!this.instance || this.currentKey !== activeKey || forceRefresh) {
+            this.isRefreshing = true
+            try {
+                this.currentKey = activeKey;
+                this.instance = new OpenAI({
+                    apiKey: activeKey,
+                    baseURL: "https://api.bytez.com/models/v2/openai/v1",
+                    dangerouslyAllowBrowser: true
+                });
+                console.log(`🔌 BytezClient connected: ${keyManager.getStatus().split('\n')[0]}`);
+            } finally {
+                this.isRefreshing = false
+            }
+        }
+        
+        return this.instance
     }
-    
-    return this.instance
-  }
 }
 ```
 
-### 4. AWS Credentials Manager
+### 4. KeyManager
 
-**Location:** Environment variables and AWS SDK configuration
+**Location:** `lib/agents/key-manager.ts`
 
 **Responsibilities:**
-- Load AWS credentials from environment variables or IAM roles
-- Configure AWS SDK clients with proper region and credentials
-- Handle AWS service authentication
-- Support IAM role-based authentication for Lambda functions
+- Load and manage multiple BYTEZ API keys
+- Automatic rotation on quota exhaustion
+- Health tracking and metrics
+- Toast notifications for key events
 
 **Configuration:**
 
 ```typescript
-// AWS SDK Configuration
-const awsConfig = {
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-};
+// Environment variables support
+// New numbered format: BYTEZ_API_KEY_1, BYTEZ_API_KEY_2, etc.
+// Legacy format: BYTEZ_API_KEYS (comma-separated)
+// Fallback: BYTEZ_API_KEY (single key)
 
-// For Lambda functions, IAM role credentials are automatically provided
-// No explicit credentials needed when running in Lambda execution environment
+// Supports up to 20 keys for maximum redundancy
+for (let i = 1; i <= 20; i++) {
+    const key = process.env[`BYTEZ_API_KEY_${i}`];
+    if (key && key.trim().length > 0) {
+        keys.push(key.trim());
+    } else {
+        break; // Stop at first gap
+    }
+}
 ```
 
 **Service Clients:**
 
 ```typescript
-// Bedrock Runtime Client
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
-const bedrockClient = new BedrockRuntimeClient(awsConfig);
-
-// DynamoDB Document Client
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-const dynamoClient = new DynamoDBClient(awsConfig);
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-
-// S3 Client
-import { S3Client } from "@aws-sdk/client-s3";
-const s3Client = new S3Client(awsConfig);
-
-// AppSync Client (for GraphQL subscriptions)
-import { AWSAppSyncClient } from 'aws-appsync';
-const appsyncClient = new AWSAppSyncClient({
-  url: process.env.APPSYNC_API_URL!,
-  region: awsConfig.region,
-  auth: {
-    type: 'API_KEY',
-    apiKey: process.env.APPSYNC_API_KEY!,
-  },
+// BYTEZ API Client (OpenAI-compatible)
+import OpenAI from "openai";
+const bytezClient = new OpenAI({
+    apiKey: process.env.BYTEZ_API_KEY_1,
+    baseURL: "https://api.bytez.com/models/v2/openai/v1"
 });
+
+// Supabase Client
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 ```
 
 
@@ -481,20 +470,20 @@ export interface AgentConfig {
 }
 ```
 
-**Model Assignments (Amazon Bedrock):**
+**Model Assignments (BYTEZ API):**
 
-| Agent | Bedrock Model ID | Rationale |
-|-------|------------------|-----------|
-| Orchestrator | anthropic.claude-3-5-sonnet-20241022-v2:0 | Fast routing, low latency |
-| Project Initializer | anthropic.claude-3-opus-20240229-v1:0 | Best conversational quality |
-| Conversational | anthropic.claude-3-opus-20240229-v1:0 | Elite reasoning for requirements |
-| BOM Generator | anthropic.claude-3-opus-20240229-v1:0 | Critical component selection |
-| Code Generator | anthropic.claude-3-5-sonnet-20241022-v2:0 | SOTA code generation |
-| Wiring Diagram | anthropic.claude-3-5-sonnet-20241022-v2:0 | Spatial reasoning |
-| Circuit Verifier | anthropic.claude-3-5-sonnet-20241022-v2:0 | Vision capabilities for image analysis |
-| Datasheet Analyzer | anthropic.claude-3-opus-20240229-v1:0 | Document comprehension |
-| Budget Optimizer | anthropic.claude-3-5-sonnet-20241022-v2:0 | Multi-constraint optimization |
-| Conversation Summarizer | anthropic.claude-3-5-sonnet-20241022-v2:0 | Concise summarization |
+| Agent | BYTEZ Model ID | Rationale |
+|-------|----------------|-----------|
+| Orchestrator | anthropic/claude-sonnet-4-5 | Fast routing, low latency |
+| Project Initializer | anthropic/claude-opus-4-5 | Best conversational quality |
+| Conversational | anthropic/claude-opus-4-5 | Elite reasoning for requirements |
+| BOM Generator | anthropic/claude-opus-4-5 | Critical component selection |
+| Code Generator | anthropic/claude-sonnet-4-5 | SOTA code generation |
+| Wiring Diagram | anthropic/claude-sonnet-4-5 | Spatial reasoning |
+| Circuit Verifier | google/gemini-2.5-flash | Vision capabilities for image analysis |
+| Datasheet Analyzer | anthropic/claude-opus-4-5 | Document comprehension |
+| Budget Optimizer | anthropic/claude-sonnet-4-5 | Multi-constraint optimization |
+| Conversation Summarizer | anthropic/claude-sonnet-4-5 | Concise summarization |
 
 **System Prompt Structure:**
 
@@ -860,36 +849,42 @@ async runAgent(agentType, messages, options) {
 
 ## Data Models
 
-### Database Schema (Amazon DynamoDB)
+### Database Schema (Supabase PostgreSQL)
 
-**DynamoDB Tables:**
+**PostgreSQL Tables:**
 
 1. **chats** - Project containers
-```typescript
-// Table: ohm-chats
-{
-  chat_id: string,           // Partition Key (PK)
-  user_id: string,           // GSI Partition Key
-  title: string,
-  created_at: string,        // ISO timestamp
-  updated_at: string,        // ISO timestamp
-}
+```sql
+CREATE TABLE chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  project_id UUID REFERENCES projects(id),
+  title TEXT,
+  is_archived BOOLEAN DEFAULT false,
+  is_public BOOLEAN DEFAULT false,
+  share_token TEXT UNIQUE,
+  last_message_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-// Global Secondary Index: user-chats-index
-// PK: user_id, SK: created_at
+-- Indexes
+CREATE INDEX idx_chats_user_id ON chats(user_id);
+CREATE INDEX idx_chats_created_at ON chats(created_at DESC);
 ```
 
 2. **chat_sessions** - Multi-agent state
-```typescript
-// Table: ohm-chat-sessions
-{
-  session_id: string,        // Partition Key (PK)
-  chat_id: string,           // GSI Partition Key
+```sql
+CREATE TABLE chat_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
   current_agent TEXT,
-  is_locked BOOLEAN DEFAULT false,
+  agent_context JSONB,
+  is_plan_locked BOOLEAN DEFAULT false,
+  locked_blueprint JSONB,
+  budget_range TEXT,
   budget_target NUMERIC,
   last_active_at TIMESTAMPTZ DEFAULT now(),
-  metadata JSONB DEFAULT '{}'
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 ```
 
@@ -898,16 +893,24 @@ async runAgent(agentType, messages, options) {
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
+  sequence_number INTEGER NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
   content TEXT NOT NULL,
   agent_name TEXT,
-  agent_id TEXT,  -- For avatar display
-  sequence_number INTEGER NOT NULL,
+  agent_model TEXT,
   intent TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  created_artifact_ids UUID[],
   metadata JSONB,
+  content_search TSVECTOR,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(chat_id, sequence_number)
 );
+
+-- Indexes
+CREATE INDEX idx_messages_chat_sequence ON messages(chat_id, sequence_number);
+CREATE INDEX idx_messages_content_search ON messages USING GIN(content_search);
 ```
 
 4. **artifacts** - Artifact containers
@@ -918,7 +921,7 @@ CREATE TABLE artifacts (
   project_id UUID REFERENCES projects(id),
   type TEXT NOT NULL CHECK (type IN (
     'context', 'mvp', 'prd', 'bom', 'code', 
-    'wiring', 'budget', 'conversation_summary'
+    'wiring', 'circuit', 'budget', 'conversation_summary'
   )),
   title TEXT NOT NULL,
   current_version INTEGER DEFAULT 1,
@@ -926,6 +929,9 @@ CREATE TABLE artifacts (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Indexes
+CREATE INDEX idx_artifacts_chat_type ON artifacts(chat_id, type);
 ```
 
 5. **artifact_versions** - Git-style versioning
@@ -941,23 +947,20 @@ CREATE TABLE artifact_versions (
   file_path TEXT,            -- For code files
   diagram_svg TEXT,          -- For wiring diagrams
   diagram_metadata JSONB,    -- For wiring diagrams
+  fritzing_url TEXT,         -- For AI-generated breadboard images
+  diagram_status TEXT,       -- queued, processing, completed, failed
+  generation_attempts INTEGER DEFAULT 0,
+  error_message TEXT,
   change_summary TEXT,
   parent_version_id UUID REFERENCES artifact_versions(id),
   created_by_message_id UUID REFERENCES messages(id),
-  created_by UUID,           -- User ID (optional)
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(artifact_id, version_number)
 );
-```
 
-6. **components** - BOM items
-```sql
-CREATE TABLE components (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  artifact_id UUID REFERENCES artifacts(id),
-  name TEXT NOT NULL,
-  part_number TEXT,
-  quantity INTEGER DEFAULT 1,
+-- Indexes
+CREATE INDEX idx_artifact_versions_artifact ON artifact_versions(artifact_id, version_number DESC);
+```
   voltage TEXT,
   current TEXT,
   estimated_cost NUMERIC,

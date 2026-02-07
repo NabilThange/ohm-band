@@ -1,6 +1,6 @@
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon } from "@/components/ui/animated-icons";
 
 export default function SidebarSection({ icon, title, children, collapsed, onToggle }) {
     return (
@@ -11,7 +11,7 @@ export default function SidebarSection({ icon, title, children, collapsed, onTog
                 aria-expanded={!collapsed}
             >
                 <span className="mr-1" aria-hidden>
-                    {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    {collapsed ? <ChevronRightIcon key="collapsed" size={14} triggerOn="auto" /> : <ChevronDownIcon key="expanded" size={14} triggerOn="auto" />}
                 </span>
                 <span className="flex items-center gap-2">
                     <span className="opacity-70" aria-hidden>

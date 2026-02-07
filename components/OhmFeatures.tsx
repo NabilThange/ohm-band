@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDownIcon } from '@/components/ui/animated-icons'
 
 interface Feature {
     title: string
@@ -66,14 +66,14 @@ export default function OhmFeatures() {
                                 <button
                                     onClick={() => setActiveIndex(index)}
                                     className={`w-full px-6 py-4 flex items-center justify-between transition-all duration-300 ${activeIndex === index
-                                            ? 'bg-primary/10 border-b border-border'
-                                            : 'bg-background hover:bg-muted/50'
+                                        ? 'bg-primary/10 border-b border-border'
+                                        : 'bg-background hover:bg-muted/50'
                                         }`}
                                 >
                                     <h3 className="text-lg font-semibold text-foreground text-left font-sans">
                                         {feature.title}
                                     </h3>
-                                    <ChevronDown
+                                    <ChevronDownIcon
                                         size={20}
                                         className={`text-foreground/70 transition-transform duration-300 flex-shrink-0 ${activeIndex === index ? 'rotate-180' : ''
                                             }`}

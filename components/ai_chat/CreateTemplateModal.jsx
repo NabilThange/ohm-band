@@ -1,6 +1,7 @@
 "use client"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Lightbulb } from "lucide-react"
+import { XIcon } from "@/components/ui/animated-icons"
+import { Lightbulb } from "lucide-react"
 import { useState } from "react"
 
 export default function CreateTemplateModal({ isOpen, onClose, onCreateTemplate, editingTemplate = null }) {
@@ -64,7 +65,7 @@ export default function CreateTemplateModal({ isOpen, onClose, onCreateTemplate,
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-semibold">{isEditing ? "Edit Template" : "Create Template"}</h2>
                             <button onClick={handleCancel} className="rounded-lg p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                                <X className="h-5 w-5" />
+                                <XIcon size={20} />
                             </button>
                         </div>
 

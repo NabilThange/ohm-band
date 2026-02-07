@@ -2,7 +2,8 @@
 
 import ToolDrawer from './ToolDrawer'
 import { Clipboard } from '@ark-ui/react'
-import { Check, Copy, Download, Share2, Trash2, AlertTriangle } from 'lucide-react'
+import { CheckIcon, CopyIcon } from '@/components/ui/animated-icons'
+import { Download, Share2, Trash2, AlertTriangle } from 'lucide-react'
 import type { BOMData } from '@/lib/parsers'
 
 interface BOMDrawerProps {
@@ -32,8 +33,8 @@ export default function BOMDrawer({ isOpen, onClose, bomData }: BOMDrawerProps) 
                         <Clipboard.Control>
                             <Clipboard.Trigger asChild>
                                 <button className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors w-full" disabled={!components.length}>
-                                    <Clipboard.Indicator copied={<Check className="w-4 h-4" />}>
-                                        <Copy className="w-4 h-4" />
+                                    <Clipboard.Indicator copied={<CheckIcon key="copied" size={16} triggerOn="auto" />}>
+                                        <CopyIcon size={16} />
                                     </Clipboard.Indicator>
                                     <span>Copy List</span>
                                 </button>

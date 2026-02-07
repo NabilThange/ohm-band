@@ -1,7 +1,8 @@
 'use client'
 
 import { Splitter } from '@ark-ui/react/splitter'
-import { X, ChevronRight, ChevronDown, FileText, Folder } from 'lucide-react'
+import { XIcon, ChevronRightIcon, ChevronDownIcon } from '@/components/ui/animated-icons'
+import { FileText, Folder } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -70,9 +71,9 @@ export default function ContextDrawer({ isOpen, onClose, contextData }: ContextD
                         style={{ paddingLeft: `${level * 1 + 0.75}rem` }}
                     >
                         {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <ChevronDownIcon key="expanded" size={16} triggerOn="auto" className="text-muted-foreground flex-shrink-0" />
                         ) : (
-                            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <ChevronRightIcon key="collapsed" size={16} triggerOn="auto" className="text-muted-foreground flex-shrink-0" />
                         )}
                         <Folder className="w-4 h-4 text-blue-500 flex-shrink-0" />
                         <span className="text-sm font-medium">{node.name}</span>
@@ -164,7 +165,7 @@ export default function ContextDrawer({ isOpen, onClose, contextData }: ContextD
                                 onClick={onClose}
                                 className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
-                                <X className="w-4 h-4" />
+                                <XIcon size={16} />
                                 <span className="sr-only">Close</span>
                             </button>
                         </div>

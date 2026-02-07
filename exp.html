@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEXT IMAGE REVEAL</title>
+</head>
+
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap');
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Bricolage Grotesque', sans-serif;
+    }
+
+    body {
+        min-height: 100vh;
+        width: 100vw;
+        overflow-x: hidden;
+        background: #f5f5f0;
+        color: #1a1a1a;
+    }
+
+
+    .container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .outro {
+        height: 100vh;
+        width: 100vw;
+    }
+
+
+
+    .line {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .line span {
+        font-size: 7.5rem;
+        font-weight: 700;
+        letter-spacing: -4px;
+        display: inline-block;
+        overflow: hidden;
+    }
+
+    .img-span {
+        height: 110px;
+        width: 0;
+        border-radius: 5px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    img {
+        height: 100%;
+        width: 300px;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 5px;
+        object-fit: cover;
+        object-position: center center;
+    }
+</style>
+
+<body>
+    <div class="container">
+
+        <div class="line">
+            <span>We craft</span>
+            <span class="img-span">
+                <img src="https://i.pinimg.com/1200x/93/27/65/932765c7cd00055218ba7398119d7d4d.jpg" alt="">
+            </span>
+            <span>digital</span>
+        </div>
+        <div class="line">
+            <span>experiences</span>
+            <span class="img-span">
+                <img src="https://i.pinimg.com/736x/a9/f1/19/a9f11909a9644d7bfd5102fabcd8310c.jpg" alt="">
+            </span>
+            <span>that</span>
+        </div>
+        <div class="line">
+            <span>inspire</span>
+            <span class="img-span">
+                <img src="https://i.pinimg.com/1200x/48/09/77/480977567d6b4503c8f642728f266b72.jpg" alt="">
+            </span>
+        </div>
+        <div class="line">
+            <span>and move</span>
+        </div>
+        <div class="line">
+            <span>people</span>
+            <span class="img-span">
+                <img src="https://i.pinimg.com/1200x/9e/f2/b7/9ef2b73b1e2ff489f99bc0a90196fbea.jpg" alt="">
+            </span>
+            <span>forward.</span>
+        </div>
+    </div>
+
+    <div class="outro"></div>
+
+    <!-- GSAP Core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"
+        integrity="sha512-NcZdtrT77bJr4STcmsGAESr06BYGE8woZdSdEgqnpyqac7sugNO+Tr4bGwGF3MsnEkGKhU2KL2xh6Ec+BqsaHA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- GSAP ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+
+    <!-- Lenis Smooth Scroll -->
+    <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+
+    <script>
+        window.addEventListener("load", () => {
+            const lenis = new Lenis();
+            lenis.on('scroll', ScrollTrigger.update);
+            gsap.ticker.add((time) => {
+                lenis.raf(time * 1000);
+            });
+            gsap.ticker.lagSmoothing(0);
+
+
+
+
+            document.querySelectorAll('.line').forEach((line) => {
+                const imgSpan = line.querySelector('.img-span');
+
+                if (imgSpan) {
+                    gsap.to(imgSpan, {
+                        width: 300,
+                        ease: "none",
+                        scrollTrigger: {
+                            trigger: line,
+                            start: "top 90%",
+                            end: "top 40%",
+                            scrub: 1,
+                        }
+                    });
+                }
+            });
+        })
+    </script>
+</body>
+
+</html>

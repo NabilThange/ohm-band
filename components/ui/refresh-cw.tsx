@@ -6,16 +6,16 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface RefreshCCWIconWIcon {
+export interface RefreshCwIconHandle {
   startAnimation: () => void;
   stopAnimation: () => void;
 }
 
-interface RefreshCCWIcoWIcon extends HTMLAttributes<HTMLDivElement> {
+interface RefreshCwIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
 }
 
-const RefreshCWIcon = forwardRef<RefreshCCWIconWIcon, RefreshCCWIcoWIcon>(
+const RefreshCwIcon = forwardRef<RefreshCwIconHandle, RefreshCwIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
     const controls = useAnimation();
     const isControlledRef = useRef(false);
@@ -78,6 +78,6 @@ const RefreshCWIcon = forwardRef<RefreshCCWIconWIcon, RefreshCCWIcoWIcon>(
   }
 );
 
-RefreshCWIcon.displayName = "RefreshCWIcon";
+RefreshCwIcon.displayName = "RefreshCwIcon";
 
-export { RefreshCWIcon };
+export { RefreshCwIcon };

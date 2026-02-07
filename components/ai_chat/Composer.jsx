@@ -2,7 +2,8 @@
 
 import { useRef, useState, forwardRef, useImperativeHandle, useEffect } from "react"
 import { flushSync } from "react-dom"
-import { Send, Loader2, Plus, Mic, X, Paperclip } from "lucide-react"
+import { XIcon } from "@/components/ui/animated-icons"
+import { Send, Loader2, Plus, Mic, Paperclip } from "lucide-react"
 import ComposerActionsPopover from "./ComposerActionsPopover"
 import { cn as cls } from "@/lib/utils"
 
@@ -202,7 +203,7 @@ const Composer = forwardRef(function Composer({ onSend, busy }, ref) {
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-semibold text-card-foreground">Command Guide</h3>
                                 <button onClick={() => setHelpOpen(false)} className="text-muted-foreground hover:text-foreground">
-                                    <X className="h-5 w-5" />
+                                    <XIcon size={20} />
                                 </button>
                             </div>
                             <div className="space-y-4">

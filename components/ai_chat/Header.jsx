@@ -1,5 +1,6 @@
 "use client"
-import { Asterisk, MoreHorizontal, Menu, ChevronDown } from "lucide-react"
+import { ChevronDownIcon } from "@/components/ui/animated-icons"
+import { Asterisk, MoreHorizontal, Menu } from "lucide-react"
 import { useState, useEffect } from "react"
 import GhostIconButton from "./GhostIconButton"
 import { getAllAgentIdentities, getAgentIdentity } from "@/lib/agents/agent-identities"
@@ -83,7 +84,7 @@ export default function Header({
                             {currentAgent.intent}
                         </span>
                     )}
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDownIcon size={16} />
                 </button>
 
                 {isDropdownOpen && (

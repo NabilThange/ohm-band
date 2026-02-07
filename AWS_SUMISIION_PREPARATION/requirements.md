@@ -13,12 +13,9 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 - **Chat_Session**: A persistent conversation between user and agents
 - **Tool_Call**: An agent's invocation of a system function to update artifacts
 - **Drawer**: A UI panel that displays specific artifact types
-- **Amazon_Bedrock**: AWS managed service providing foundation models (Claude 3.5 Sonnet, Claude 3 Opus)
-- **DynamoDB**: AWS NoSQL database service with streams for real-time updates
-- **AWS_AppSync**: AWS managed GraphQL service for real-time subscriptions
-- **Amazon_S3**: AWS object storage service for file uploads (circuit photos, datasheets)
-- **AWS_Lambda**: AWS serverless compute service for API endpoints
-- **AWS_Amplify**: AWS hosting and CI/CD service for the Next.js application
+- **Amazon_Bedrock**: AWS's fully managed foundation model service providing Claude and other models
+- **DynamoDB**: AWS's NoSQL database service providing scalable data storage
+- **AppSync**: AWS's managed GraphQL service for real-time subscriptions
 
 ## Requirements
 
@@ -100,9 +97,9 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 
 #### Acceptance Criteria
 
-1. WHEN a user sends a message, THE System SHALL persist it to the messages table with a sequence number
+1. WHEN a user sends a message, THE System SHALL persist it to the DynamoDB messages table with a sequence number
 2. WHEN an agent responds, THE System SHALL persist the response with agent_id and intent metadata
-3. WHEN artifacts are created, THE System SHALL store them in the artifacts table with versioning
+3. WHEN artifacts are created, THE System SHALL store them in the DynamoDB artifacts table with versioning
 4. WHEN artifact versions are created, THE System SHALL link them to the creating message via created_by_message_id
 5. WHEN a chat session is updated, THE System SHALL record the current_agent and last_active_at timestamp
 
@@ -124,11 +121,11 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 
 #### Acceptance Criteria
 
-1. WHEN an API call fails with a quota error (429, 402, or quota-related message), THE Key Manager SHALL mark the current key as failed
-2. WHEN a key is marked as failed, THE System SHALL rotate to the next healthy key automatically
-3. WHEN key rotation occurs, THE System SHALL notify the client via key_rotation event
-4. WHEN all keys are exhausted, THE System SHALL return a clear error message with instructions to add credits
-5. WHEN a key succeeds, THE System SHALL record the success for health tracking
+1. WHEN a Bedrock API call fails with a throttling error (ThrottlingException), THE System SHALL implement exponential backoff retry
+2. WHEN throttling occurs, THE System SHALL wait with increasing delays (1s, 2s, 4s, 8s) before retrying
+3. WHEN throttling is detected, THE System SHALL notify the client via throttling_retry event
+4. WHEN maximum retries are exceeded, THE System SHALL return a clear error message with retry instructions
+5. WHEN a request succeeds after throttling, THE System SHALL record the success for health tracking
 
 ### Requirement 10: Tool Execution System
 
@@ -148,11 +145,11 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 
 #### Acceptance Criteria
 
-1. WHEN a client connects to a chat, THE System SHALL subscribe to Supabase real-time changes for that chat_id
-2. WHEN a new message is inserted, THE System SHALL push the message to all subscribed clients
-3. WHEN an artifact is updated, THE System SHALL notify subscribed clients of the change
-4. WHEN a subscription is established, THE System SHALL use the format `chat:{chatId}` for the channel name
-5. WHEN a client disconnects, THE System SHALL automatically unsubscribe from the channel
+1. WHEN a client connects to a chat, THE System SHALL subscribe to AppSync real-time changes for that chat_id
+2. WHEN a new message is inserted, THE System SHALL push the message to all subscribed clients via AppSync
+3. WHEN an artifact is updated, THE System SHALL notify subscribed clients of the change via DynamoDB Streams
+4. WHEN a subscription is established, THE System SHALL use the format `chat:{chatId}` for the subscription filter
+5. WHEN a client disconnects, THE System SHALL automatically unsubscribe from the AppSync subscription
 
 ### Requirement 12: Circuit Verification
 
@@ -161,7 +158,7 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 #### Acceptance Criteria
 
 1. WHEN a user uploads a circuit image, THE System SHALL route to the Circuit Verifier agent
-2. WHEN the Circuit Verifier analyzes an image, THE System SHALL use a vision-capable model (google/gemini-2.5-flash)
+2. WHEN the Circuit Verifier analyzes an image, THE System SHALL use Amazon Bedrock Claude with vision capabilities
 3. WHEN analyzing, THE System SHALL check power rail polarity, component orientation, and GPIO connections
 4. WHEN issues are found, THE System SHALL return a JSON response with criticalIssues, suggestions, and confidence level
 5. WHEN the image is unclear, THE System SHALL request a better photo rather than guessing
@@ -277,7 +274,7 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 - Real-time message delivery: <100ms latency
 
 ### Security
-- Row-Level Security (RLS) on all database tables
+- Row-Level Security (RLS) on all Supabase tables
 - API keys stored in environment variables only
 - User authentication via Supabase Auth
 - No PII in logs or error messages
@@ -293,3 +290,30 @@ OHM (Hardware Orchestrator) is an AI-powered IoT/Hardware Development IDE that b
 - Comprehensive logging for debugging
 - Version control for all artifacts
 - Database migrations for schema changes
+
+## AWS Migration Requirements
+
+### Migration Readiness
+- Architecture designed for cloud-native deployment
+- Modular components ready for AWS service integration
+- Database schema adaptable to DynamoDB with minimal changes
+- API layer compatible with AWS Lambda functions
+- Real-time system ready for AppSync integration
+
+### AWS Service Mapping
+- **AI Service**: Amazon Bedrock (Claude 3.5 Sonnet, Claude 3 Opus)
+- **Database**: Amazon DynamoDB with Global Secondary Indexes
+- **Real-time**: AWS AppSync with DynamoDB Streams
+- **Storage**: Amazon S3 with presigned URLs
+- **Hosting**: AWS Amplify with CI/CD
+- **Authentication**: Amazon Cognito User Pools
+- **Monitoring**: Amazon CloudWatch + X-Ray
+- **Functions**: AWS Lambda for serverless API endpoints
+
+### AWS Architecture Benefits
+- **Scalability**: Better handling of enterprise-scale workloads
+- **Integration**: Native AWS service integration
+- **Compliance**: Enhanced security and compliance features
+- **Cost Optimization**: Potential cost savings at scale
+- **Monitoring**: Comprehensive CloudWatch integration
+- **Global Scale**: Multi-region deployment capabilities

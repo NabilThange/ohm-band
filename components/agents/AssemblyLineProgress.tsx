@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, Lock, Eye, Code, Brain, MessageSquare } from "lucide-react";
+import { CheckIcon } from "@/components/ui/animated-icons"
+import { Loader2, Lock, Eye, Code, Brain, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type AssemblyLineStep = "chat" | "blueprint" | "code" | "verify";
@@ -132,7 +133,7 @@ export function AssemblyLineProgress({
                                                         animate={{ scale: 1 }}
                                                         exit={{ scale: 0 }}
                                                     >
-                                                        <Check className="w-8 h-8 text-white" />
+                                                        <CheckIcon key="check" size={32} triggerOn="auto" className="text-white" />
                                                     </motion.div>
                                                 ) : isCurrent && isProcessing ? (
                                                     <motion.div

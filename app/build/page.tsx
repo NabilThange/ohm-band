@@ -9,7 +9,7 @@ export default function BuildPage() {
     const params = useParams()
     const chatId = params?.chatId as string | undefined
 
-    // If chatId exists in URL, start in chat mode
+
     const [mode, setMode] = useState(chatId ? "chat" : "input")
     const [initialPrompt, setInitialPrompt] = useState("")
 
@@ -18,7 +18,7 @@ export default function BuildPage() {
     }, [chatId])
 
     const handleProjectSubmit = (prompt: string, style: string, userLevel: string, projectComplexity: string) => {
-        // Since we removed the options, just use the prompt directly
+
         setInitialPrompt(prompt)
         setMode("chat")
     }

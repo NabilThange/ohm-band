@@ -1,7 +1,8 @@
 'use client'
 
 import { Splitter } from '@ark-ui/react/splitter'
-import { X, Clock, MessageSquare, Cpu, FileCode, Zap } from 'lucide-react'
+import { XIcon } from '@/components/ui/animated-icons'
+import { Clock, MessageSquare, Cpu, FileCode, Zap } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -14,10 +15,10 @@ interface ConversationSummaryDrawerProps {
     chatId: string | null
 }
 
-export default function ConversationSummaryDrawer({ 
-    isOpen, 
-    onClose, 
-    chatId 
+export default function ConversationSummaryDrawer({
+    isOpen,
+    onClose,
+    chatId
 }: ConversationSummaryDrawerProps) {
     const [summary, setSummary] = useState<ConversationSummary | null>(null)
     const [loading, setLoading] = useState(true)
@@ -181,7 +182,7 @@ export default function ConversationSummaryDrawer({
                                 onClick={onClose}
                                 className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
-                                <X className="w-4 h-4" />
+                                <XIcon size={16} />
                                 <span className="sr-only">Close</span>
                             </button>
                         </div>

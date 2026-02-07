@@ -1,7 +1,8 @@
 'use client'
 
 import ToolDrawer from './ToolDrawer'
-import { Search, Plus, Info, Check } from 'lucide-react'
+import { CheckIcon, PlusIcon } from '@/components/ui/animated-icons'
+import { Search, Info } from 'lucide-react'
 import { useState } from 'react'
 
 interface ComponentDrawerProps {
@@ -78,7 +79,7 @@ export default function ComponentDrawer({ isOpen, onClose }: ComponentDrawerProp
                                 {/* Status Icon */}
                                 <div className={`absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center transition-all
                             ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary'}`}>
-                                    {isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                    {isSelected ? <CheckIcon key="selected" size={12} triggerOn="auto" /> : <PlusIcon size={12} />}
                                 </div>
 
                                 {/* Content */}

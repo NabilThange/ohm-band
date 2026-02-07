@@ -3,9 +3,11 @@
 import type { Transition } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
+
+export type AnimationTrigger = 'hover' | 'click' | 'auto' | 'none';
 
 export interface ChevronLeftIconHandle {
   startAnimation: () => void;
@@ -14,6 +16,7 @@ export interface ChevronLeftIconHandle {
 
 interface ChevronLeftIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
+  triggerOn?: AnimationTrigger;
 }
 
 const DEFAULT_TRANSITION: Transition = {
@@ -22,7 +25,7 @@ const DEFAULT_TRANSITION: Transition = {
 };
 
 const ChevronLeftIcon = forwardRef<ChevronLeftIconHandle, ChevronLeftIconProps>(
-  ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
+  ({ onMouseEnter, onMouseLeave, onClick, className, size = 28, triggerOn = 'hover', ...props }, ref) => {
     const controls = useAnimation();
     const isControlledRef = useRef(false);
 
@@ -34,26 +37,42 @@ const ChevronLeftIcon = forwardRef<ChevronLeftIconHandle, ChevronLeftIconProps>(
       };
     });
 
+    useEffect(() => {
+      if (triggerOn === 'auto') {
+        controls.start("animate");
+      }
+    }, [triggerOn, controls]);
+
     const handleMouseEnter = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (isControlledRef.current) {
-          onMouseEnter?.(e);
-        } else {
+        onMouseEnter?.(e);
+        if (!isControlledRef.current && triggerOn === 'hover') {
           controls.start("animate");
         }
       },
-      [controls, onMouseEnter]
+      [controls, onMouseEnter, triggerOn]
     );
 
     const handleMouseLeave = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (isControlledRef.current) {
-          onMouseLeave?.(e);
-        } else {
+        onMouseLeave?.(e);
+        if (!isControlledRef.current && triggerOn === 'hover') {
           controls.start("normal");
         }
       },
-      [controls, onMouseLeave]
+      [controls, onMouseLeave, triggerOn]
+    );
+
+    const handleClick = useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        onClick?.(e);
+        if (!isControlledRef.current && triggerOn === 'click') {
+          controls.start("animate").then(() => {
+            setTimeout(() => controls.start("normal"), 100);
+          });
+        }
+      },
+      [controls, onClick, triggerOn]
     );
 
     return (
@@ -61,6 +80,7 @@ const ChevronLeftIcon = forwardRef<ChevronLeftIconHandle, ChevronLeftIconProps>(
         className={cn(className)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
         {...props}
       >
         <svg

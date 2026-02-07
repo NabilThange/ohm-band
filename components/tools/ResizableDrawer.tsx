@@ -1,7 +1,7 @@
 'use client'
 
 import { Splitter } from '@ark-ui/react/splitter'
-import { X } from 'lucide-react'
+import { XIcon } from '@/components/ui/animated-icons'
 import { useEffect, ReactNode } from 'react'
 
 interface ResizableDrawerProps {
@@ -89,7 +89,7 @@ export default function ResizableDrawer({
                                 onClick={onClose}
                                 className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
-                                <X className="w-4 h-4" />
+                                <XIcon size={16} />
                                 <span className="sr-only">Close</span>
                             </button>
                         </div>

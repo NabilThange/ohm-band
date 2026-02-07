@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Mic, Paperclip, X } from "lucide-react"
+import { XIcon } from "@/components/ui/animated-icons"
+import { Send, Mic, Paperclip } from "lucide-react"
 import { AnimatedTextarea } from "@/components/ui/animated-textarea"
 import ComposerActionsPopover from "@/components/ai_chat/ComposerActionsPopover"
 import { cn as cls } from "@/lib/utils"
@@ -159,7 +160,7 @@ export const MorphingComposer = forwardRef<HTMLTextAreaElement, MorphingComposer
                                         onClick={() => onHelpOpenChange?.(false)}
                                         className="text-muted-foreground hover:text-foreground"
                                     >
-                                        <X className="h-5 w-5" />
+                                        <XIcon size={20} />
                                     </button>
                                 </div>
                                 <div className="space-y-4">

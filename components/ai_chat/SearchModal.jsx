@@ -1,6 +1,7 @@
 "use client"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, SearchIcon, Plus, Clock } from "lucide-react"
+import { XIcon } from "@/components/ui/animated-icons"
+import { SearchIcon, Plus, Clock } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 
 function getTimeGroup(dateString) {
@@ -106,7 +107,7 @@ export default function SearchModal({
                                 autoFocus
                             />
                             <button onClick={handleClose} className="rounded-lg p-1.5 hover:bg-accent">
-                                <X className="h-5 w-5" />
+                                <XIcon size={20} />
                             </button>
                         </div>
 

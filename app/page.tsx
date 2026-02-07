@@ -8,6 +8,7 @@ import OhmFeatures from '@/components/OhmFeatures'
 import PricingSection from '@/components/PricingSection'
 import { SquigglyArrow } from '@/components/ui/squiggle-arrow'
 import { HeroPromptInput } from '@/components/shared/HeroPromptInput'
+import TextImageReveal from '@/components/TextImageReveal'
 
 const features = [
     { label: 'Project Planning' },
@@ -169,6 +170,9 @@ export default function Home() {
                 <div id="features">
                     <OhmFeatures />
                 </div>
+
+                {/* Text Image Reveal Section */}
+                <TextImageReveal />
 
                 {/* Pricing Section */}
                 <PricingSection />

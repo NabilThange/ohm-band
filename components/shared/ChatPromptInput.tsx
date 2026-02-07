@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Paperclip, Send, X } from 'lucide-react';
+import { XIcon } from '@/components/ui/animated-icons'
+import { Mic, Paperclip, Send } from 'lucide-react';
 import ComposerActionsPopover from '@/components/ai_chat/ComposerActionsPopover';
 import { cn as cls } from '@/lib/utils';
 
@@ -168,7 +169,7 @@ export function ChatPromptInput({ onSendMessage, isLoading = false }: ChatPrompt
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-card-foreground">Command Guide</h3>
                             <button onClick={() => setHelpOpen(false)} className="text-muted-foreground hover:text-foreground">
-                                <X className="h-5 w-5" />
+                                <XIcon size={20} />
                             </button>
                         </div>
                         <div className="space-y-4">

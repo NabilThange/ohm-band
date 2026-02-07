@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, forwardRef, useImperativeHandle, useRef, useEffect } from "react"
-import { Pencil, RefreshCw, Check, X } from "lucide-react"
+import { CheckIcon, RefreshCwIcon, XIcon } from "@/components/ui/animated-icons"
+import { Pencil } from "lucide-react"
 import Message from "./Message"
 import { cn as cls, timeAgo } from "@/lib/utils"
 import { useChat } from "@/lib/hooks/use-chat"
@@ -104,7 +105,7 @@ Reflect any changes made during the chat in these documents.`;
                     <div className="mb-2 text-3xl font-serif tracking-tight sm:text-4xl md:text-5xl">
                         <span className="block leading-[1.05] font-sans text-2xl">{chat?.title || "New Project"}</span>
                     </div>
-                {/* 
+                    {/* 
                 <div className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
                     Updated {timeAgo(conversation.updatedAt)} · {count} messages
                 </div>

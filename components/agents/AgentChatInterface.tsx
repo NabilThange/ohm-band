@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Download, Copy, Check } from "lucide-react";
+import { CheckIcon, CopyIcon } from "@/components/ui/animated-icons";
+import { Send, Paperclip, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssemblyLineProgress, type AssemblyLineStep } from "./AssemblyLineProgress";
 import { motion, AnimatePresence } from "framer-motion";
@@ -333,7 +334,7 @@ export function AgentChatInterface({ initialPrompt }: AgentChatInterfaceProps) {
                                         onClick={() => copyToClipboard(blueprintJson, "blueprint")}
                                         className="text-white"
                                     >
-                                        {copiedBlueprint ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        {copiedBlueprint ? <CheckIcon key="blueprint-copied" size={16} triggerOn="auto" /> : <CopyIcon size={16} />}
                                     </Button>
                                 </div>
                                 <pre className="whitespace-pre-wrap">{JSON.stringify(blueprint, null, 2)}</pre>
@@ -351,7 +352,7 @@ export function AgentChatInterface({ initialPrompt }: AgentChatInterfaceProps) {
                                         onClick={() => copyToClipboard(code, "code")}
                                         className="text-white"
                                     >
-                                        {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        {copiedCode ? <CheckIcon key="code-copied" size={16} triggerOn="auto" /> : <CopyIcon size={16} />}
                                     </Button>
                                 </div>
                                 <pre className="whitespace-pre-wrap">{code}</pre>

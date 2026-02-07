@@ -1,6 +1,7 @@
 'use client'
 
-import { Check, Zap, ArrowRight } from "lucide-react"
+import { CheckIcon } from "@/components/ui/animated-icons"
+import { Zap, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const features = [
@@ -78,7 +79,7 @@ export default function PricingSection() {
                                 {features.map((feature, index) => (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <Check className="h-3 w-3" />
+                                            <CheckIcon size={12} triggerOn="auto" />
                                         </div>
                                         <span className="text-foreground/80 font-sans">{feature}</span>
                                     </div>

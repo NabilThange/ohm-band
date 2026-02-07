@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { FolderIcon, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react"
+import { ChevronRightIcon, ChevronDownIcon } from "@/components/ui/animated-icons"
+import { FolderIcon, MoreHorizontal } from "lucide-react"
 import ConversationRow from "./ConversationRow"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -63,9 +64,9 @@ export default function FolderRow({
             <div className="flex items-center justify-between rounded-lg px-2 py-2 text-sm hover:bg-accent">
                 <button onClick={handleToggle} className="flex items-center gap-2 flex-1 text-left">
                     {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-zinc-500" />
+                        <ChevronDownIcon key="expanded" size={16} triggerOn="auto" className="text-zinc-500" />
                     ) : (
-                        <ChevronRight className="h-4 w-4 text-zinc-500" />
+                        <ChevronRightIcon key="collapsed" size={16} triggerOn="auto" className="text-zinc-500" />
                     )}
                     <FolderIcon className="h-4 w-4" />
                     <span className="truncate">{name}</span>
