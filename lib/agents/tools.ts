@@ -205,8 +205,9 @@ export function getToolsForAgent(agentType: string): any[] {
         conversationSummarizer: ['read'],
         // Agents that don't use tools
         orchestrator: [],
-        circuitVerifier: [],
-        datasheetAnalyzer: []
+        datasheetAnalyzer: [],
+        // Debugger has read-only access
+        debugger: ['read', 'open_drawer']
     };
 
     const toolNames = toolMap[agentType] || [];

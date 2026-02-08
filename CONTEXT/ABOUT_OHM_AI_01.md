@@ -98,7 +98,7 @@ User Query
 | **Temperature** | 0.7 |
 | **Max Tokens** | 2000 |
 | **Role** | Quick-start wizard - transforms vague ideas into concrete project direction |
-| **Tools** | `update_context`, `update_mvp`, `update_prd` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 3. Conversational Agent (Subsequent Messages)
 
@@ -108,7 +108,7 @@ User Query
 | **Temperature** | 0.8 (higher for creative conversation) |
 | **Max Tokens** | 3000 |
 | **Role** | The idea-to-blueprint translator - guides user through requirements |
-| **Tools** | `update_context`, `update_mvp`, `update_prd` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 4. BOM Generator
 
@@ -118,7 +118,7 @@ User Query
 | **Temperature** | 0.2 (low for precision) |
 | **Max Tokens** | 25000 |
 | **Role** | Creates validated Bill of Materials with voltage/current checks |
-| **Tools** | `update_bom` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 5. Code Generator
 
@@ -128,7 +128,7 @@ User Query
 | **Temperature** | 0.2 (low for consistent code) |
 | **Max Tokens** | 16000 |
 | **Role** | Writes production-ready firmware (Arduino C++, MicroPython) |
-| **Tools** | `add_code_file` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 6. Wiring Specialist
 
@@ -138,7 +138,7 @@ User Query
 | **Temperature** | 0.15 (very low for precision) |
 | **Max Tokens** | 4000 |
 | **Role** | Creates step-by-step wiring instructions with safety warnings |
-| **Tools** | `update_wiring` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 7. Circuit Verifier (Vision Agent)
 
@@ -168,7 +168,7 @@ User Query
 | **Temperature** | 0.3 |
 | **Max Tokens** | 25000 |
 | **Role** | Finds cost savings without sacrificing quality |
-| **Tools** | `update_budget` |
+| **Tools** | `read`, `write`, `open_drawer` |
 
 #### 10. Conversation Summarizer (NEW)
 
@@ -192,23 +192,51 @@ OHM uses a dual-layer tool system to extend AI agent capabilities:
 1. **Internal Tools** - Native OHM tools for project management (drawers, updates, artifacts)
 2. **MCP (Model Context Protocol)** - External tools for internet search, web scraping, and third-party integrations
 
-### Internal Tool System
+### Internal Tool System (Simplified 4-Tool Interface)
 
 **Verified from `lib/agents/tools.ts` and `lib/agents/tool-executor.ts`:**
 
-OHM's agents have access to specialized tools that manipulate project artifacts and trigger UI updates. Each tool is designed for a specific purpose and is only available to certain agents.
+OHM uses a simplified 4-tool interface that replaces 15 specialized tools. Each tool is flexible and works with all artifact types.
 
-#### Tool Catalog
+#### Core Tool Catalog
 
-| Tool Name | Description | Agents with Access | Output |
-|-----------|-------------|-------------------|---------|
-| `update_context` | Updates project context (Overview, Background, Constraints) | Conversational, ProjectInitializer | Context Drawer |
-| `update_mvp` | Defines MVP specification (Core Features, Success Metrics) | Conversational, ProjectInitializer | Context Drawer |
-| `update_prd` | Creates Product Requirements Document | Conversational, ProjectInitializer | Context Drawer |
-| `update_bom` | Generates Bill of Materials with components, specs, and pricing | BOM Generator | BOM Drawer |
-| `add_code_file` | Adds code files (accumulates multiple files per project) | Code Generator | Code Drawer |
-| `update_wiring` | Creates wiring connections and assembly instructions | Wiring Specialist | Wiring Drawer |
-| `update_budget` | Provides budget optimization recommendations | Budget Optimizer | Budget Drawer |
+| Tool Name | Description | Parameters | Output |
+|-----------|-------------|-----------|--------|
+| `read` | Read any artifact (context, mvp, prd, bom, code, wiring, budget, conversation_summary) | `artifact_type`, `path` (optional) | Artifact content |
+| `write` | Create/update any artifact with merge strategies | `artifact_type`, `content`, `merge_strategy`, `path`, `language` | Updated artifact |
+| `delete` | Delete artifact or specific file within artifact | `artifact_type`, `path` (optional) | Deletion confirmation |
+| `open_drawer` | Open any drawer (context, bom, code, wiring, budget) | `drawer` | Drawer UI event |
+
+#### Artifact Types Supported
+
+- `context` - Project overview, background, constraints
+- `mvp` - MVP specification with core features
+- `prd` - Product requirements document
+- `bom` - Bill of materials with components
+- `code` - Source code files (accumulates multiple files)
+- `wiring` - Wiring connections and instructions
+- `budget` - Budget optimization recommendations
+- `conversation_summary` - (read-only) Incremental conversation summaries
+
+#### Drawer Types
+
+- `context` - Displays Context/MVP/PRD
+- `bom` - Displays Bill of Materials
+- `code` - Displays Code Files
+- `wiring` - Displays Wiring Diagram
+- `budget` - Displays Budget Analysis
+
+#### Legacy Tool Support
+
+All old tool names still work for backward compatibility:
+- `update_context`, `update_mvp`, `update_prd` → `write(artifact_type='context'|'mvp'|'prd')`
+- `update_bom` → `write(artifact_type='bom')`
+- `add_code_file` → `write(artifact_type='code', path=...)`
+- `update_wiring` → `write(artifact_type='wiring')`
+- `update_budget` → `write(artifact_type='budget')`
+- `read_file` → `read()`
+- `write_file` → `write()`
+- `open_context_drawer`, `open_bom_drawer`, etc. → `open_drawer(drawer=...)`
 
 #### Tool Execution Flow
 
@@ -221,10 +249,11 @@ Specialized Agent (decides to call tool)
     ↓
 Tool Executor (lib/agents/tool-executor.ts)
     ↓
+    ├─ Routes to appropriate handler (read/write/delete/open_drawer)
     ├─ Validates tool arguments
-    ├─ Persists to Supabase (artifacts table)
-    ├─ Creates artifact version (Git-style versioning)
-    ├─ Triggers drawer auto-open event
+    ├─ For write: Persists to Supabase (artifacts table)
+    ├─ For write: Creates artifact version (Git-style versioning)
+    ├─ For open_drawer: Triggers drawer auto-open event
     └─ Returns success/error to agent
     ↓
 UI Updates (drawer opens with new content)
@@ -382,19 +411,24 @@ Track tool usage to provide insights and enforce limits:
 - ✅ **Tool Calling** - agents can call structured tools
 - ✅ **SSE (Server-Sent Events)** for streaming (`app/api/agents/chat/route.ts`)
 
-### 3. 🛠️ Tool System (Fully Implemented)
+### 3. 🛠️ Tool System (Fully Implemented - Simplified 4-Tool Interface)
 
 **Verified from `lib/agents/tools.ts` and `lib/agents/tool-executor.ts`:**
 
-| Tool | Description | Used By |
-|------|-------------|---------|
-| `update_context` | Project context (Overview, Background, Constraints) | Conversational, ProjectInitializer |
-| `update_mvp` | MVP specification (Core Features, Success Metrics) | Conversational, ProjectInitializer |
-| `update_prd` | Product Requirements Document | Conversational, ProjectInitializer |
-| `update_bom` | Bill of Materials with components and pricing | BOM Generator |
-| `add_code_file` | Add code files (accumulates multiple files) | Code Generator |
-| `update_wiring` | Wiring connections and instructions | Wiring Specialist |
-| `update_budget` | Budget optimization recommendations | Budget Optimizer |
+OHM uses a simplified 4-tool interface that replaces 15 specialized tools:
+
+| Tool | Description | All Agents |
+|------|-------------|-----------|
+| `read` | Read any artifact (context, mvp, prd, bom, code, wiring, budget, conversation_summary) | ✅ |
+| `write` | Create/update any artifact with merge strategies (replace/append/merge) | ✅ |
+| `delete` | Delete artifact or specific file within artifact | ✅ |
+| `open_drawer` | Open any drawer (context, bom, code, wiring, budget) | ✅ |
+
+**Benefits:**
+- Simpler API (4 tools instead of 15)
+- More flexible (single `write` tool handles all artifact types)
+- Easier to extend (adding new artifact types doesn't require new tools)
+- Backward compatible (old tool names still work)
 
 ### 4. 📦 Drawer System (Fully Implemented)
 
@@ -809,17 +843,18 @@ npm run dev
 
 ## 📊 Agent Model Summary
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| Orchestrator | `anthropic/claude-sonnet-4-5` | Fast intent routing |
-| Project Initializer | `anthropic/claude-opus-4-5` | First message handling |
-| Conversational | `anthropic/claude-opus-4-5` | General conversation |
-| BOM Generator | `anthropic/claude-opus-4-5` | Component selection |
-| Code Generator | `anthropic/claude-sonnet-4-5` | Firmware generation |
-| Wiring Specialist | `anthropic/claude-sonnet-4-5` | Connection instructions |
-| Circuit Verifier | `google/gemini-2.5-flash` | Vision analysis |
-| Datasheet Analyzer | `anthropic/claude-opus-4-5` | Document extraction |
-| Budget Optimizer | `anthropic/claude-sonnet-4-5` | Cost optimization |
+| Agent | Model | Purpose | Tools |
+|-------|-------|---------|-------|
+| Orchestrator | `anthropic/claude-sonnet-4-5` | Fast intent routing | None |
+| Project Initializer | `anthropic/claude-opus-4-5` | First message handling | `read`, `write`, `open_drawer` |
+| Conversational | `anthropic/claude-opus-4-5` | General conversation | `read`, `write`, `open_drawer` |
+| BOM Generator | `anthropic/claude-opus-4-5` | Component selection | `read`, `write`, `open_drawer` |
+| Code Generator | `anthropic/claude-sonnet-4-5` | Firmware generation | `read`, `write`, `open_drawer` |
+| Wiring Specialist | `anthropic/claude-sonnet-4-5` | Connection instructions | `read`, `write`, `open_drawer` |
+| Circuit Verifier | `google/gemini-2.5-flash` | Vision analysis | None |
+| Datasheet Analyzer | `anthropic/claude-opus-4-5` | Document extraction | None |
+| Budget Optimizer | `anthropic/claude-sonnet-4-5` | Cost optimization | `read`, `write`, `open_drawer` |
+| Conversation Summarizer | `anthropic/claude-sonnet-4-5` | Summary generation | `read` |
 
 ---
 

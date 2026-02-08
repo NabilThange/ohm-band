@@ -797,7 +797,7 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                                     { id: "bomGenerator", name: "BOM Generator", icon: "📦" },
                                     { id: "codeGenerator", name: "Code Generator", icon: "⚡" },
                                     { id: "wiringDiagram", name: "Wiring Specialist", icon: "🔌" },
-                                    { id: "circuitVerifier", name: "Circuit Inspector", icon: "👁️" },
+                                    { id: "debugger", name: "Hardware Debugger", icon: "🐛" },
                                     { id: "datasheetAnalyzer", name: "Datasheet Analyst", icon: "📄" },
                                     { id: "budgetOptimizer", name: "Budget Optimizer", icon: "💰" }
                                 ];

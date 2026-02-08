@@ -54,12 +54,12 @@ export const AGENT_IDENTITIES: Record<string, AgentIdentity> = {
     role: "Creates precise wiring diagrams",
     model: "Claude Sonnet 4.5"
   },
-  circuitVerifier: {
-    name: "Quality Assurance",
+  debugger: {
+    name: "Hardware Debugger",
     avatar: "/avatar/Quality_Assurance.svg",
-    icon: "✅",
-    role: "Validates circuits for safety and correctness",
-    model: "Gemini 2.5 Flash"
+    icon: "🐛",
+    role: "Diagnoses issues across code, wiring, and components",
+    model: "Claude Opus 4.5"
   },
   datasheetAnalyzer: {
     name: "Technical Analyst",
