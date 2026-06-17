@@ -93,6 +93,18 @@ Reflect any changes made during the chat in these documents.`;
         scrollToBottom()
     }, [messages])
 
+    // Listen for question answer submissions
+    useEffect(() => {
+        const handleQuestionAnswers = (e) => {
+            const { answers } = e.detail;
+            console.log('[ChatPane] ❓ Question answers received:', answers);
+            handleSend(answers);
+        };
+        
+        window.addEventListener('send-question-answers', handleQuestionAnswers);
+        return () => window.removeEventListener('send-question-answers', handleQuestionAnswers);
+    }, [chatId, sendMessage]);
+
     // Auto-scroll function
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -156,7 +168,7 @@ Reflect any changes made during the chat in these documents.`;
             </div>
 
             {/* Chat Input - now part of layout flow */}
-            <ChatPromptInput onSendMessage={handleSend} isLoading={busy || isLoading} />
+            <ChatPromptInput onSendMessage={handleSend} isLoading={busy || isLoading} chatId={chatId} />
         </div >
     )
 })

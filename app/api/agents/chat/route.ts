@@ -54,6 +54,15 @@ export async function POST(req: NextRequest) {
                         }
                     );
 
+                    // NEW: Parse and send questions if present
+                    if (result.hasQuestions && result.questions) {
+                        console.log('[API Route] ❓ Sending questions:', result.questions.questions.length);
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                            type: 'questions',
+                            questions: result.questions
+                        })}\n\n`));
+                    }
+
                     // Send final metadata (with any additional info like key rotation and tool calls)
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                         type: 'metadata',
@@ -65,6 +74,7 @@ export async function POST(req: NextRequest) {
                         },
                         isReadyToLock: result.isReadyToLock,
                         toolCalls: result.toolCalls || [], // NEW: Include tool calls
+                        hasQuestions: result.hasQuestions, // NEW: Include questions flag
                         keyRotationEvent: result.keyRotationEvent
                     })}\n\n`));
 

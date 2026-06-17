@@ -16,11 +16,14 @@ import { extractBOMFromMessage, extractCodeFromMessage, extractContextFromMessag
 import { showAgentChangeToast } from "@/lib/agents/toast-notifications"
 import { ArtifactService } from "@/lib/db/artifacts"
 import { supabase } from "@/lib/supabase/client"
+import { StageProgressBar } from "@/components/stages/StageProgressBar"
+import { StageOverrideButton } from "@/components/stages/StageOverrideButton"
 
 // Import Drawers
 import BOMDrawer from "@/components/tools/BOMDrawer"
 import CodeDrawer from "@/components/tools/CodeDrawer"
 import ContextDrawer from "@/components/tools/ContextDrawer"
+import { ProviderSelector } from "./ProviderSelector"
 
 // Default/System user ID for MVP
 const DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -99,6 +102,54 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
         icon: '🚀',
         intent: 'INIT'
     });
+
+    // Provider selection state
+    const [providerChanged, setProviderChanged] = useState(false);
+
+    // ── Project Stage State ────────────────────────────────────────────
+    const [projectState, setProjectState] = useState(null);
+
+    // Load project state when a chat is selected
+    useEffect(() => {
+        if (!selectedId) { setProjectState(null); return; }
+
+        fetch(`/api/agents/project-state?chatId=${selectedId}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => { if (data) setProjectState(data); })
+            .catch((err) => console.error('[AIAssistantUI] Failed to load project state:', err));
+    }, [selectedId]);
+
+    // Realtime subscription: update stage badge when session row changes
+    useEffect(() => {
+        if (!selectedId) return;
+
+        const stageChannel = supabase
+            .channel(`session_stage:${selectedId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'chat_sessions',
+                    filter: `chat_id=eq.${selectedId}`,
+                },
+                (payload) => {
+                    const newStage = payload.new?.project_stage;
+                    if (newStage && newStage !== projectState?.projectStage) {
+                        console.log(`[AIAssistantUI] 🎉 Stage advanced to: ${newStage}`);
+                        setProjectState((prev) => prev ? { ...prev, projectStage: newStage } : prev);
+                        // Reload full state to get updated artifact metadata
+                        fetch(`/api/agents/project-state?chatId=${selectedId}`)
+                            .then((res) => res.ok ? res.json() : null)
+                            .then((data) => { if (data) setProjectState(data); })
+                            .catch(() => {});
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(stageChannel); };
+    }, [selectedId, projectState?.projectStage]);
 
     // Callback for agent changes - IMMEDIATELY called when orchestrator detects intent
     const handleAgentChange = useCallback((agent) => {
@@ -782,6 +833,11 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                     <main className="relative flex min-w-0 flex-1 flex-col h-full">
                         <Header
+                            chatId={selectedId}
+                            autoOrchestration={projectState?.autoOrchestration ?? true}
+                            onAutoOrchestrationChange={(enabled) => {
+                                setProjectState((prev) => prev ? { ...prev, autoOrchestration: enabled } : prev);
+                            }}
                             createNewChat={() => router.push('/build')}
                             sidebarCollapsed={sidebarCollapsed}
                             setSidebarOpen={setSidebarOpen}
@@ -814,6 +870,27 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                                 }
                             }}
                         />
+
+                        {/* Stage Progress Bar — shown when a chat is active */}
+                        {projectState && selectedId && (
+                            <div className="flex items-center gap-2">
+                                <StageProgressBar
+                                    currentStage={projectState.projectStage}
+                                    artifacts={projectState.artifacts}
+                                />
+                                <div className="pr-3 shrink-0">
+                                    <StageOverrideButton
+                                        chatId={selectedId}
+                                        currentStage={projectState.projectStage}
+                                        onStageChanged={(newStage) =>
+                                            setProjectState((prev) =>
+                                                prev ? { ...prev, projectStage: newStage, stageOverride: true } : prev
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {/* Always render ChatPane; internal logic handles empty state */}
                         <ChatPane

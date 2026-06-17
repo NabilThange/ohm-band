@@ -189,7 +189,7 @@ export class ToolExecutor {
                 // Create new version without the deleted file
                 const version = await ArtifactService.createVersion({
                     artifact_id: result.artifact.id,
-                    version_number: result.artifact.current_version + 1,
+                    version_number: (result.artifact.current_version || 0) + 1,
                     content_json: { files: filteredFiles },
                     change_summary: `Deleted ${path}`
                 });
@@ -286,6 +286,7 @@ export class ToolExecutor {
                     );
 
                 case 'open_drawer':
+                    console.log('[ToolExecutor] open_drawer called with arguments:', toolCall.arguments);
                     // Single tool to open any drawer
                     return {
                         success: true,
@@ -571,7 +572,7 @@ export class ToolExecutor {
                         console.error('[ToolExecutor] ❌ Background AI image generation failed:', err.message);
                     });
             } else {
-                console.log('[ToolExecutor] ⚠️  AI image generation not available (BYTEZ_API_KEY not configured)');
+                console.log('[ToolExecutor] ⚠️  AI image generation not available (active provider doesn\'t support it)');
             }
 
         } catch (error: any) {

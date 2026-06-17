@@ -4,11 +4,11 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project overview
 
-OHM is a Next.js-based "hardware lifecycle orchestrator" that turns vague hardware ideas into production-ready prototypes through a sequential multi-agent AI pipeline. The root app (this package) hosts the live experience at `/` (marketing) and `/build` (multi-agent build interface), backed by BYTEZ API models and Supabase for chat and artifact persistence.
+OHM is a Next.js-based "hardware lifecycle orchestrator" that turns vague hardware ideas into production-ready prototypes through a sequential multi-agent AI pipeline. The root app (this package) hosts the live experience at `/` (marketing) and `/build` (multi-agent build interface), backed by Multi-Provider LLM APIs (OpenRouter, Groq, AIML API) and Supabase for chat and artifact persistence.
 
 High-level pieces:
 - **Next.js app (root)**: User-facing landing page, prompt intake, and multi-step build interface.
-- **Multi-agent orchestration layer** (`lib/agents`): Encapsulates all BYTEZ API model configuration and the sequential "assembly line" flow across agents.
+- **Multi-agent orchestration layer** (`lib/agents`): Encapsulates all LLM provider configuration and the sequential "assembly line" flow across agents.
 - **Persistence layer** (`lib/db`, `lib/supabase`): Supabase-backed services for chats, messages, artifacts, components, and connections.
 - **Reference/legacy apps** (`Landing page/`, `ai_chat/`): Earlier standalone Next.js apps and UI prototypes; useful for design or component reuse but not the primary entry point.
 - **Context docs** (`context_docs/`): High-signal documentation for architecture, model wiring, database schema, and setup.
@@ -50,13 +50,15 @@ These two folders each contain their own isolated Next.js apps and package.json;
 
 All environment variables are expected to be set via `.env.local` in the project root (not committed to VCS).
 
-### BYTEZ API
+### Multi-Provider LLM Configuration
 
-Used for all model inference via an OpenAI-compatible endpoint:
-- **Base URL** (wired in `lib/agents/orchestrator.ts`): `https://api.bytez.com/models/v2/openai/v1`
+Used for all model inference via OpenAI-compatible endpoints with provider configs defined in `lib/agents/provider-config.ts`.
+- **LLM_PROVIDER**: Environment variable that selects the active provider (`openrouter`, `groq`, or `aiml`).
 - **Required env vars**:
-  - `BYTEZ_API_KEY` – primary secret key used by the BYTEZ OpenAI-compatible client.
-  - `NEXT_PUBLIC_BYTEZ_API_KEY` – optional public key variant (also checked in `lib/agents/orchestrator.ts`).
+  - `OPENROUTER_API_KEY_1`, `OPENROUTER_API_KEY_2`, etc. for OpenRouter.
+  - `GROQ_API_KEY_1`, `GROQ_API_KEY_2`, etc. for Groq.
+  - `AIML_API_KEY_1`, `AIML_API_KEY_2`, etc. for AIML API.
+  - Supports sequentially numbered fallback and comma-separated lists.
 
 ### Supabase
 
@@ -121,7 +123,7 @@ Primary UI directories under `components/`:
 
 ### Agent configuration (`lib/agents/config.ts`)
 
-`AGENTS` defines all logical agents in the system and maps them to BYTEZ models, system prompts, and caps:
+`AGENTS` defines all logical agents in the system and maps them to model roles (fast, reasoning, code, vision), which are then mapped to provider-specific models via `getModelForAgent()` in `provider-config.ts`:
 
 - **orchestrator** (`openai/gpt-4o`)
   - Lightweight classifier that turns a user message into an intent: `CHAT`, `BOM`, `CODE`, `WIRING`, `CIRCUIT_VERIFY`, `DATASHEET`, or `BUDGET`.
@@ -248,8 +250,8 @@ High-value documents that future Warp agents should consult when making non-triv
 
 - `OHM_SYSTEM_DOCUMENTATION.md`
   - End-to-end description of the multi-agent system, including model choices, agent responsibilities, and the "Golden Blueprint" JSON format.
-- `BYTEZ_INTEGRATION_SUMMARY.md`
-  - Detailed explanation of the BYTEZ integration, model mapping, and the `max_tokens`/`max_completion_tokens` fix implemented in `lib/agents/orchestrator.ts`.
+- `PROVIDER_MIGRATION.md`
+  - Documentation of the multi-provider LLM architecture migration from Bytez to OpenRouter/Groq/AIML API.
 - `DATABASE_ARCHITECTURE.md` / `DATABASE_*`
   - Canonical source of truth for database tables, relationships, and intended query patterns.
 - `SETUP_GUIDE.md` / `SUPABASE_SETUP.md`

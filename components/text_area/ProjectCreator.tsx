@@ -10,6 +10,8 @@ import { AvatarGroup, AvatarGroupTooltip } from "@/components/animate-ui/compone
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { MorphingComposer } from "@/components/shared/MorphingComposer"
 import { cn as cls } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import { MessageSquare } from "lucide-react"
 
 interface ProjectCreatorProps {
     onSubmit: (prompt: string, style: string, userLevel: string, projectComplexity: string) => void
@@ -56,6 +58,7 @@ const COMMANDS = [
 ]
 
 export function ProjectCreator({ onSubmit }: ProjectCreatorProps) {
+    const router = useRouter()
     const [prompt, setPrompt] = useState("")
     const promptRef = useRef<HTMLTextAreaElement>(null)
     const [showHowItWorks, setShowHowItWorks] = useState(false)
@@ -131,6 +134,16 @@ export function ProjectCreator({ onSubmit }: ProjectCreatorProps) {
 
     return (
         <div className="min-h-screen bg-transparent flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
+            {/* Recent Chats Button - Top Right */}
+            <button
+                onClick={() => router.push('/chats')}
+                className="absolute top-4 right-4 md:top-6 md:right-6 z-20 inline-flex items-center gap-2 rounded-full border border-border bg-card/80 backdrop-blur-sm px-4 py-2 text-sm font-semibold tracking-tight hover:bg-card hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200"
+                aria-label="View All Chats"
+            >
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Recent Chats</span>
+            </button>
+
             <div className="absolute inset-0 -z-10 opacity-40 bg-black">
                 <FaultyTerminal
                     scale={1.2}

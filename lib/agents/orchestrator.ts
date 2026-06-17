@@ -1,37 +1,53 @@
 import OpenAI from "openai";
-import { AGENTS, type AgentType, getChatAgentType } from "./config";
+import { AGENTS, type AgentType, getChatAgentType, getModelForAgent } from "./config";
 import { KeyManager, type KeyRotationEvent } from "./key-manager";
 import { getToolsForAgent, type ToolCall } from "./tools";
 import { ConversationSummarizer } from "./summarizer";
+import { getProviderConfig, getNextProvider, validateProviderModel, type ProviderType } from "./provider-config";
+import { parseQuestions } from "./question-parser";
+import { ProjectStateService } from "@/lib/stages/project-state";
+import { buildOrchestratorPrompt } from "@/lib/stages/prompt-builder";
+import { STAGE_CONFIG } from "@/lib/stages/stage-config";
 
 /**
- * BYTEZ Client Singleton with Automatic Failover
- * Configured to use the unified BYTEZ API endpoint with multi-key support
+ * Multi-Provider LLM Client Singleton with Automatic Failover
+ * Supports OpenRouter, Groq Cloud, and AIML API with unified interface
  * 
- * BYTEZ API Documentation:
- * - Supports OpenAI-compatible endpoints at https://api.bytez.com/models/v2/openai/v1
- * - Uses `max_tokens` parameter (NOT max_completion_tokens)
- * - Supports streaming for all models
+ * Provider Configuration:
+ * - Set LLM_PROVIDER env var to: openrouter | groq | aiml
+ * - Each provider has its own API keys and baseURL
+ * - Uses OpenAI-compatible SDK for all providers
+ * - Supports streaming, tool calling, and vision (provider-dependent)
  * 
- * Agent Model Mapping (Ultimate God Mode):
- * - Orchestrator: anthropic/claude-sonnet-4-5 (fast routing)
- * - Conversational: anthropic/claude-opus-4-5 (best conversational quality)
- * - BOM Generator: anthropic/claude-opus-4-5 (elite reasoning)
- * - Code Generator: anthropic/claude-sonnet-4-5 (SOTA code generation)
- * - Wiring Diagram: anthropic/claude-sonnet-4-5 (spatial reasoning)
- * - Circuit Verifier: google/gemini-2.5-flash (native multimodal vision)
- * - Datasheet Analyzer: anthropic/claude-opus-4-5 (document comprehension)
- * - Budget Optimizer: anthropic/claude-sonnet-4-5 (multi-constraint optimization)
+ * Agent Model Mapping (Dynamic via modelRole):
+ * - Orchestrator: "fast" role → provider-specific fast model
+ * - Conversational: "reasoning" role → provider-specific reasoning model
+ * - BOM Generator: "reasoning" role → provider-specific reasoning model
+ * - Code Generator: "code" role → provider-specific code model
+ * - Wiring Diagram: "code" role → provider-specific code model
+ * - Debugger: "reasoning" role → provider-specific reasoning model
+ * - Datasheet Analyzer: "reasoning" role → provider-specific reasoning model
+ * - Budget Optimizer: "reasoning" role → provider-specific reasoning model
+ * - Conversation Summarizer: "fast" role → provider-specific fast model
+ * 
+ * See lib/agents/provider-config.ts for model mappings per provider
  */
-class BytezClient {
+/**
+ * Provider Client Singleton with Automatic Failover
+ * Supports multiple LLM providers: OpenRouter, Groq, AIML API
+ */
+class ProviderClient {
     private static instance: OpenAI | null = null;
     private static currentKey: string | null = null;
+    private static currentProvider: string | null = null;
     private static isRefreshing: boolean = false;
 
     /**
      * Get singleton instance with thread-safety
+     * @param provider Optional provider override
+     * @param forceRefresh Force recreation of client
      */
-    static async getInstance(forceRefresh: boolean = false): Promise<OpenAI> {
+    static async getInstance(provider?: ProviderType, forceRefresh: boolean = false): Promise<OpenAI> {
         // Wait if another request is refreshing
         let waitCount = 0;
         while (this.isRefreshing && waitCount < 50) {
@@ -40,18 +56,30 @@ class BytezClient {
         }
 
         const keyManager = KeyManager.getInstance();
+        
+        // If provider override, ensure KeyManager has correct keys loaded
+        if (provider && keyManager.getCurrentProvider() !== provider) {
+            keyManager.reloadKeysForProvider(provider);
+        }
+        
         const activeKey = keyManager.getCurrentKey();
+        const providerConfig = getProviderConfig(provider);
 
-        if (!this.instance || this.currentKey !== activeKey || forceRefresh) {
+        if (!this.instance || 
+            this.currentKey !== activeKey || 
+            this.currentProvider !== providerConfig.name ||
+            forceRefresh) {
+            
             this.isRefreshing = true;
             try {
                 this.currentKey = activeKey;
+                this.currentProvider = providerConfig.name;
                 this.instance = new OpenAI({
                     apiKey: activeKey,
-                    baseURL: "https://api.bytez.com/models/v2/openai/v1",
+                    baseURL: providerConfig.baseURL,
                     dangerouslyAllowBrowser: true // For client-side usage
                 });
-                console.log(`🔌 BytezClient connected: ${keyManager.getStatus().split('\n')[0]}`);
+                console.log(`🔌 ${providerConfig.name} connected: ${keyManager.getStatus().split('\n')[0]}`);
             } finally {
                 this.isRefreshing = false;
             }
@@ -75,24 +103,30 @@ export class AgentRunner {
 
         // Check error message content
         const message = (error.message || '').toLowerCase();
-        const keywords = ['quota', 'insufficient_quota', 'rate_limit', 'credits', 'billing', 'payment'];
+        const keywords = [
+            'quota', 'insufficient_quota', 'rate_limit', 'credits', 'billing', 'payment',
+            'exceeded', 'limit', 'throttle', 'too many requests'
+        ];
         return keywords.some(keyword => message.includes(keyword));
     }
 
     /**
      * Execute API call with automatic failover
+     * @param overrideProvider Optional provider to use instead of default
      */
     private async executeWithRetry<T>(
         operation: (client: OpenAI) => Promise<T>,
-        operationName: string = "API Call"
+        operationName: string = "API Call",
+        overrideProvider?: ProviderType
     ): Promise<T> {
         const keyManager = KeyManager.getInstance();
         const totalKeys = keyManager.getTotalKeys();
+        const providerConfig = getProviderConfig(overrideProvider);
         let attempt = 0;
 
         while (attempt < totalKeys) {
             try {
-                const client = await BytezClient.getInstance();
+                const client = await ProviderClient.getInstance(overrideProvider);
                 const result = await operation(client);
 
                 // Record success
@@ -112,12 +146,12 @@ export class AgentRunner {
                     const rotated = keyManager.rotateKey();
                     if (!rotated) {
                         throw new Error(
-                            `❌ All ${totalKeys} API keys exhausted. Please add credits at https://bytez.com/api`
+                            `❌ All ${totalKeys} API keys exhausted for ${providerConfig.name}. Please add credits or switch providers.`
                         );
                     }
 
                     // Force client refresh and retry
-                    await BytezClient.getInstance(true);
+                    await ProviderClient.getInstance(overrideProvider, true);
                     console.log(`🔄 Retrying ${operationName} with new key...`);
                     continue;
                 }
@@ -128,11 +162,29 @@ export class AgentRunner {
             }
         }
 
-        throw new Error(`❌ ${operationName} failed after ${totalKeys} attempts`);
+        // All keys exhausted for current provider - try next provider
+        console.warn(`💀 All keys exhausted for ${providerConfig.name}, trying next provider...`);
+        
+        const nextProvider = getNextProvider(providerConfig.name as ProviderType);
+        if (nextProvider) {
+            console.log(`🔄 Switching to ${nextProvider}...`);
+            const switched = keyManager.switchProvider(nextProvider);
+            
+            if (switched) {
+                await ProviderClient.getInstance(nextProvider, true);
+                // Retry with new provider (recursive call)
+                return this.executeWithRetry(operation, operationName, nextProvider);
+            }
+        }
+
+        throw new Error(`❌ All providers and keys exhausted. Please add more API keys or check your accounts.`);
     }
 
     /**
      * Run a single agent with the given messages (with tool support)
+     * @param agentType The type of agent to run
+     * @param messages Conversation messages
+     * @param options Optional configurations including provider/model overrides
      */
     async runAgent(
         agentType: AgentType,
@@ -141,7 +193,10 @@ export class AgentRunner {
             onStream?: (chunk: string) => void;
             stream?: boolean;
             onToolCall?: (toolCall: ToolCall) => Promise<any>;
-            chatId?: string; // NEW: Pass chatId for context injection
+            chatId?: string;
+            // NEW: Runtime provider/model overrides
+            overrideProvider?: ProviderType;
+            overrideModel?: string;
         }
     ): Promise<{ response: string; toolCalls: ToolCall[] }> {
         const agent = AGENTS[agentType];
@@ -180,164 +235,427 @@ export class AgentRunner {
             ...messages
         ];
 
-        console.log(`🤖 Running ${agent.name} (${agent.model})...`);
+        // NEW: Get actual model with overrides
+        const actualModel = getModelForAgent(
+            agentType,
+            options?.overrideProvider,
+            options?.overrideModel
+        );
+        
+        const providerName = options?.overrideProvider || getProviderConfig().name;
+        console.log(`🤖 Running ${agent.name} (${actualModel} via ${providerName})...`);
         console.log(`📊 [Orchestrator] Messages count: ${fullMessages.length}, System prompt length: ${systemPrompt.length} chars`);
 
         // Get tools for this agent
         const tools = getToolsForAgent(agentType);
         console.log(`🔧 [Orchestrator] Tools available: ${tools.length}`);
 
-        return this.executeWithRetry(
-            async (client) => {
-                if (options?.stream) {
-                    return await this.runStreamingAgentWithTools(client, agent, fullMessages, tools, options?.onStream, options?.onToolCall);
-                } else {
-                    return await this.runNonStreamingAgentWithTools(client, agent, fullMessages, tools, options?.onToolCall);
+        // ponytail: If agent needs tools, try user's model first, fallback to reliable tool-calling models
+        const needsTools = tools.length > 0;
+        // Try these models in order if primary fails
+        const fallbackOptions = [
+            { model: 'nex-agi/nex-n2-pro:free', provider: 'openrouter' as ProviderType },
+            { model: 'openai/gpt-4.1-nano-2025-04-14', provider: 'aiml' as ProviderType }
+        ];
+        
+        try {
+            const result = await this.executeWithRetry(
+                async (client) => {
+                    if (options?.stream) {
+                        return await this.runStreamingAgentWithTools(client, agent, actualModel, fullMessages, tools, options?.onStream, options?.onToolCall);
+                    } else {
+                        return await this.runNonStreamingAgentWithTools(client, agent, actualModel, fullMessages, tools, options?.onToolCall);
+                    }
+                },
+                agent.name,
+                options?.overrideProvider
+            );
+
+            // ponytail: Check if tools were expected but not used (model doesn't support function calling properly)
+            if (needsTools && result.toolCalls.length === 0 && result.response.length > 0) {
+                // Check if response contains tool-like JSON that wasn't parsed as tool calls
+                const hasToolLikeContent = result.response.includes('"name"') && result.response.includes('"arguments"');
+                
+                if (hasToolLikeContent) {
+                    // Try fallback models in order
+                    for (const fallback of fallbackOptions) {
+                        if (actualModel === fallback.model) continue; // Skip if already using this model
+                        
+                        console.warn(`⚠️ [Orchestrator] Model ${actualModel} returned text instead of tool calls, retrying with ${fallback.model}...`);
+                        
+                        try {
+                            return await this.executeWithRetry(
+                                async (client) => {
+                                    if (options?.stream) {
+                                        return await this.runStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onStream, options?.onToolCall);
+                                    } else {
+                                        return await this.runNonStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onToolCall);
+                                    }
+                                },
+                                `${agent.name} (Fallback: ${fallback.model})`,
+                                fallback.provider
+                            );
+                        } catch (fallbackError: any) {
+                            console.warn(`⚠️ Fallback ${fallback.model} also failed: ${fallbackError.message}`);
+                            // Try next fallback
+                        }
+                    }
                 }
-            },
-            agent.name
-        );
+            }
+            
+            return result;
+            
+        } catch (error: any) {
+            // ponytail: If tool calling failed and we're not already using fallback, retry with reliable models
+            const isToolError = error.message?.toLowerCase().includes('function') || 
+                               error.message?.toLowerCase().includes('tool');
+                               
+            if (needsTools && isToolError) {
+                // Try fallback models in order
+                for (const fallback of fallbackOptions) {
+                    if (actualModel === fallback.model) continue; // Skip if already using this model
+                    
+                    console.warn(`⚠️ [Orchestrator] Tool calling failed with ${actualModel}, retrying with ${fallback.model}...`);
+                    console.warn(`⚠️ Original error: ${error.message}`);
+                    
+                    try {
+                        return await this.executeWithRetry(
+                            async (client) => {
+                                if (options?.stream) {
+                                    return await this.runStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onStream, options?.onToolCall);
+                                } else {
+                                    return await this.runNonStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onToolCall);
+                                }
+                            },
+                            `${agent.name} (Fallback: ${fallback.model})`,
+                            fallback.provider
+                        );
+                    } catch (fallbackError: any) {
+                        console.warn(`⚠️ Fallback ${fallback.model} also failed: ${fallbackError.message}`);
+                        // Try next fallback
+                    }
+                }
+            }
+            
+            // If not a tool error or all fallbacks failed, rethrow
+            throw error;
+        }
     }
 
     /**
      * Internal non-streaming agent execution (with tool support)
+     * Multi-turn loop: AI gets multiple turns until it returns text without tool calls
      */
     private async runNonStreamingAgentWithTools(
         client: OpenAI,
         agent: typeof AGENTS[AgentType],
+        model: string,
         messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
         tools: any[],
         onToolCall?: (toolCall: ToolCall) => Promise<any>
     ): Promise<{ response: string; toolCalls: ToolCall[] }> {
-        const requestParams: any = {
-            model: agent.model,
-            messages,
-            temperature: agent.temperature,
-            stream: false
-        };
+        const allToolCalls: ToolCall[] = [];
+        const conversationMessages = [...messages]; // Copy to avoid mutating original
+        const maxTurns = 10; // ponytail: hard loop limit, upgrade path is configurable per-agent
+        const seenCalls = new Set<string>(); // Loop detection
 
-        // Add tools if available
-        if (tools.length > 0) {
-            requestParams.tools = tools.map(t => ({
-                type: "function",
-                function: t
-            }));
-        }
+        for (let turn = 0; turn < maxTurns; turn++) {
+            console.log(`🔄 [AgentLoop] Turn ${turn + 1}/${maxTurns}`);
 
-        const response = await client.chat.completions.create(requestParams);
-        const message = response.choices[0]?.message;
+            const requestParams: any = {
+                model: model,
+                messages: conversationMessages,
+                temperature: agent.temperature,
+                stream: false
+            };
 
-        const toolCalls: ToolCall[] = [];
-        let content = message?.content || "";
+            if (tools.length > 0) {
+                requestParams.tools = tools.map(t => ({
+                    type: "function",
+                    function: t
+                }));
+            }
 
-        // Handle tool calls
-        if (message?.tool_calls) {
-            for (const tc of message.tool_calls) {
-                // Type guard: only process function-type tool calls
-                if (tc.type === 'function' && 'function' in tc) {
-                    const toolCall: ToolCall = {
-                        name: tc.function.name,
-                        arguments: JSON.parse(tc.function.arguments)
-                    };
-                    toolCalls.push(toolCall);
+            const response = await client.chat.completions.create(requestParams);
+            const message = response.choices[0]?.message;
 
-                    // Execute tool call if callback provided
-                    if (onToolCall) {
-                        console.log(`🔧 Executing tool call: ${toolCall.name}`);
-                        await onToolCall(toolCall);
+            // Check for tool calls
+            if (message?.tool_calls && message.tool_calls.length > 0) {
+                console.log(`🔧 [AgentLoop] AI called ${message.tool_calls.length} tool(s)`);
+
+                // Add assistant message with tool calls to history
+                conversationMessages.push({
+                    role: "assistant",
+                    content: message.content || "",
+                    tool_calls: message.tool_calls
+                } as any);
+
+                // Execute each tool and collect results
+                for (const tc of message.tool_calls) {
+                    if (tc.type === 'function' && 'function' in tc) {
+                        const toolCall: ToolCall = {
+                            name: tc.function.name,
+                            arguments: JSON.parse(tc.function.arguments)
+                        };
+
+                        // Loop detection: same tool + args = abort
+                        const callSig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
+                        if (seenCalls.has(callSig)) {
+                            throw new Error(`Loop detected: repeated call to ${toolCall.name}`);
+                        }
+                        seenCalls.add(callSig);
+
+                        allToolCalls.push(toolCall);
+
+                        // Execute tool
+                        let toolResult: any;
+                        try {
+                            if (onToolCall) {
+                                console.log(`🔧 Executing tool: ${toolCall.name}`);
+                                toolResult = await onToolCall(toolCall);
+                            } else {
+                                toolResult = { success: true };
+                            }
+                        } catch (error: any) {
+                            console.error(`❌ Tool ${toolCall.name} failed:`, error.message);
+                            toolResult = {
+                                success: false,
+                                error: error.message
+                            };
+                        }
+
+                        // ponytail: Ensure content is never empty (OpenAI requires it)
+                        const resultContent = toolResult !== undefined 
+                            ? JSON.stringify(toolResult)
+                            : JSON.stringify({ success: true });
+
+                        // Add tool result to conversation
+                        conversationMessages.push({
+                            role: "tool",
+                            tool_call_id: tc.id,
+                            content: resultContent
+                        } as any);
                     }
                 }
+
+                // Continue loop - give AI another turn
+                continue;
             }
+
+            // No tool calls - AI provided final response
+            const finalContent = message?.content || "";
+            console.log(`✅ ${agent.name} completed in ${turn + 1} turn(s) (${finalContent.length} chars, ${allToolCalls.length} total tool calls)`);
+            return { response: finalContent, toolCalls: allToolCalls };
         }
 
-        console.log(`✅ ${agent.name} completed (${content.length} chars, ${toolCalls.length} tool calls)`);
-        return { response: content, toolCalls };
+        throw new Error(`Agent loop exceeded max turns (${maxTurns})`);
     }
 
     /**
      * Internal streaming agent execution (with tool support)
+     * Multi-turn loop: AI gets multiple turns until it returns text without tool calls
      */
     private async runStreamingAgentWithTools(
         client: OpenAI,
         agent: typeof AGENTS[AgentType],
+        model: string,
         messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
         tools: any[],
         onStream?: (chunk: string) => void,
         onToolCall?: (toolCall: ToolCall) => Promise<any>
     ): Promise<{ response: string; toolCalls: ToolCall[] }> {
-        const requestParams: any = {
-            model: agent.model,
-            messages,
-            temperature: agent.temperature,
-            stream: true
-        };
-
-        // Add tools if available
-        if (tools.length > 0) {
-            requestParams.tools = tools.map(t => ({
-                type: "function",
-                function: t
-            }));
-        }
-
-        const stream = await client.chat.completions.create(requestParams) as any;
-
+        const allToolCalls: ToolCall[] = [];
+        const conversationMessages = [...messages]; // Copy to avoid mutating original
+        const maxTurns = 10; // ponytail: hard loop limit, upgrade path is configurable per-agent
+        const seenCalls = new Set<string>(); // Loop detection
         let fullText = "";
+
+        for (let turn = 0; turn < maxTurns; turn++) {
+            console.log(`🔄 [AgentLoop] Turn ${turn + 1}/${maxTurns} (streaming)`);
+
+            const requestParams: any = {
+                model: model,
+                messages: conversationMessages,
+                temperature: agent.temperature,
+                stream: true
+            };
+
+            if (tools.length > 0) {
+                requestParams.tools = tools.map(t => ({
+                    type: "function",
+                    function: t
+                }));
+            }
+
+            const stream = await client.chat.completions.create(requestParams) as any;
+
+            let turnText = "";
+            const toolCallBuffers: Map<number, { id: string; name: string; args: string }> = new Map();
+
+            for await (const chunk of stream) {
+                const delta = chunk.choices[0]?.delta;
+
+                // Handle text content
+                if (delta?.content) {
+                    turnText += delta.content;
+                    fullText += delta.content;
+                    onStream?.(delta.content);
+                }
+
+                // Handle tool calls (buffering)
+                if (delta?.tool_calls) {
+                    for (const tc of delta.tool_calls) {
+                        const index = tc.index;
+
+                        if (!toolCallBuffers.has(index)) {
+                            toolCallBuffers.set(index, { id: tc.id || "", name: "", args: "" });
+                        }
+
+                        const buffer = toolCallBuffers.get(index)!;
+
+                        if (tc.id) {
+                            buffer.id = tc.id;
+                        }
+                        if (tc.function?.name) {
+                            buffer.name = tc.function.name;
+                        }
+                        if (tc.function?.arguments) {
+                            buffer.args += tc.function.arguments;
+                        }
+                    }
+                }
+            }
+
+            // Check if we got tool calls this turn
+            if (toolCallBuffers.size > 0) {
+                console.log(`🔧 [AgentLoop] AI called ${toolCallBuffers.size} tool(s)`);
+
+                // Build tool_calls array for the assistant message
+                const toolCallsForMessage: any[] = [];
+                
+                for (const buffer of toolCallBuffers.values()) {
+                    if (buffer.name && buffer.args) {
+                        toolCallsForMessage.push({
+                            id: buffer.id,
+                            type: "function",
+                            function: {
+                                name: buffer.name,
+                                arguments: buffer.args
+                            }
+                        });
+                    }
+                }
+
+                // Add assistant message with tool calls to history
+                conversationMessages.push({
+                    role: "assistant",
+                    content: turnText,
+                    tool_calls: toolCallsForMessage
+                } as any);
+
+                // Execute each tool and collect results
+                for (const buffer of toolCallBuffers.values()) {
+                    if (buffer.name && buffer.args) {
+                        try {
+                            const toolCall: ToolCall = {
+                                name: buffer.name,
+                                arguments: JSON.parse(buffer.args)
+                            };
+
+                            // Loop detection: same tool + args = abort
+                            const callSig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
+                            if (seenCalls.has(callSig)) {
+                                throw new Error(`Loop detected: repeated call to ${toolCall.name}`);
+                            }
+                            seenCalls.add(callSig);
+
+                            allToolCalls.push(toolCall);
+
+                            // Execute tool
+                            let toolResult: any;
+                            try {
+                                if (onToolCall) {
+                                    console.log(`🔧 Executing tool: ${toolCall.name}`);
+                                    toolResult = await onToolCall(toolCall);
+                                } else {
+                                    toolResult = { success: true };
+                                }
+                            } catch (error: any) {
+                                console.error(`❌ Tool ${toolCall.name} failed:`, error.message);
+                                toolResult = {
+                                    success: false,
+                                    error: error.message
+                                };
+                            }
+
+                            // ponytail: Ensure content is never empty (OpenAI requires it)
+                            const resultContent = toolResult !== undefined 
+                                ? JSON.stringify(toolResult)
+                                : JSON.stringify({ success: true });
+
+                            // Add tool result to conversation
+                            conversationMessages.push({
+                                role: "tool",
+                                tool_call_id: buffer.id,
+                                content: resultContent
+                            } as any);
+                        } catch (error) {
+                            console.error(`❌ Failed to parse tool call ${buffer.name}:`, error);
+                        }
+                    }
+                }
+
+                // Continue loop - give AI another turn
+                continue;
+            }
+
+            // No tool calls - AI provided final response
+            console.log(`✅ ${agent.name} completed in ${turn + 1} turn(s) (${fullText.length} chars, ${allToolCalls.length} total tool calls)`);
+            
+            // ponytail: Fallback - parse tool calls from text if model doesn't support function calling
+            if (allToolCalls.length === 0 && fullText.length > 0) {
+                const parsedCalls = this.parseToolCallsFromText(fullText);
+                if (parsedCalls.length > 0) {
+                    console.log(`🔧 [Fallback] Parsed ${parsedCalls.length} tool calls from text response`);
+                    for (const toolCall of parsedCalls) {
+                        allToolCalls.push(toolCall);
+                        if (onToolCall) {
+                            console.log(`🔧 Executing parsed tool call: ${toolCall.name}`);
+                            await onToolCall(toolCall);
+                        }
+                    }
+                    // Clear text since it was just tool calls
+                    fullText = "";
+                }
+            }
+            
+            return { response: fullText, toolCalls: allToolCalls };
+        }
+
+        throw new Error(`Agent loop exceeded max turns (${maxTurns})`);
+    }
+
+    /**
+     * Parse tool calls from text response (fallback for models without function calling)
+     */
+    private parseToolCallsFromText(text: string): ToolCall[] {
         const toolCalls: ToolCall[] = [];
-        const toolCallBuffers: Map<number, { name: string; args: string }> = new Map();
-
-        for await (const chunk of stream) {
-            const delta = chunk.choices[0]?.delta;
-
-            // Handle text content
-            if (delta?.content) {
-                fullText += delta.content;
-                onStream?.(delta.content);
-            }
-
-            // Handle tool calls (buffering)
-            if (delta?.tool_calls) {
-                for (const tc of delta.tool_calls) {
-                    const index = tc.index;
-
-                    if (!toolCallBuffers.has(index)) {
-                        toolCallBuffers.set(index, { name: "", args: "" });
-                    }
-
-                    const buffer = toolCallBuffers.get(index)!;
-
-                    if (tc.function?.name) {
-                        buffer.name = tc.function.name;
-                    }
-                    if (tc.function?.arguments) {
-                        buffer.args += tc.function.arguments;
-                    }
-                }
+        
+        // Match JSON objects with "name" and "arguments" fields
+        const jsonPattern = /\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{[^}]+\})\s*\}/g;
+        let match;
+        
+        while ((match = jsonPattern.exec(text)) !== null) {
+            try {
+                const name = match[1];
+                const args = JSON.parse(match[2]);
+                toolCalls.push({ name, arguments: args });
+            } catch (e) {
+                console.warn('[Orchestrator] Failed to parse tool call from text:', e);
             }
         }
-
-        // Process completed tool calls
-        for (const buffer of toolCallBuffers.values()) {
-            if (buffer.name && buffer.args) {
-                try {
-                    const toolCall: ToolCall = {
-                        name: buffer.name,
-                        arguments: JSON.parse(buffer.args)
-                    };
-                    toolCalls.push(toolCall);
-
-                    if (onToolCall) {
-                        console.log(`🔧 Executing tool call: ${toolCall.name}`);
-                        await onToolCall(toolCall);
-                    }
-                } catch (error) {
-                    console.error(`❌ Failed to parse tool call ${buffer.name}:`, error);
-                }
-            }
-        }
-
-        console.log(`✅ ${agent.name} completed (${fullText.length} chars, ${toolCalls.length} tool calls)`);
-        return { response: fullText, toolCalls };
+        
+        return toolCalls;
     }
 
     /**
@@ -354,13 +672,14 @@ export class AgentRunner {
             throw new Error(`Unknown agent type: ${agentType}`);
         }
 
-        console.log(`👁️ Running ${agent.name} with vision...`);
+        const actualModel = getModelForAgent(agentType);
+        console.log(`👁️ Running ${agent.name} with vision (${actualModel})...`);
 
         return this.executeWithRetry(
             async (client) => {
                 // Create request params - BYTEZ only supports max_tokens, not max_completion_tokens
                 const requestParams: any = {
-                    model: agent.model,
+                    model: actualModel,
                     messages: [
                         { role: "system", content: agent.systemPrompt },
                         {
@@ -506,11 +825,49 @@ Examples:
         agentIcon: string;
         intent: string;
         toolCalls?: ToolCall[];
+        questions?: any;
+        hasQuestions?: boolean;
         keyRotationEvent?: KeyRotationEvent | null;
     }> {
         // 1. Get History BEFORE adding new message (to determine if this is first message)
         const historyBeforeNewMessage = await this.getHistory();
         const messageCount = historyBeforeNewMessage.length;
+
+        // 1.5 Load session provider/model preferences
+        let overrideProvider: ProviderType | undefined;
+        let overrideModel: string | undefined;
+        
+        if (this.chatId) {
+            try {
+                const { getSupabaseClient } = await import('@/lib/supabase/client');
+                const supabase = getSupabaseClient();
+                const { data: session } = await supabase
+                    .from('chat_sessions')
+                    .select('selected_provider, selected_model')
+                    .eq('chat_id', this.chatId)
+                    .single();
+
+                if (session) {
+                    overrideProvider = session.selected_provider as ProviderType | undefined;
+                    overrideModel = session.selected_model || undefined;
+                    
+                    if (overrideProvider) {
+                        console.log(`🎛️ [Orchestrator] Session preferences: ${overrideProvider}${overrideModel ? ` / ${overrideModel}` : ''}`);
+                        
+                        // Validate provider/model combination
+                        const validation = validateProviderModel(overrideProvider, overrideModel);
+                        if (!validation.valid) {
+                            console.warn(`⚠️ [Orchestrator] ${validation.error}, using fallback`);
+                            overrideProvider = validation.fallback?.provider;
+                            overrideModel = validation.fallback?.model;
+                        }
+                    }
+                }
+            } catch (error: any) {
+                console.error(`❌ [Orchestrator] Failed to load session provider preferences:`, error.message);
+                // Continue with defaults
+            }
+        }
 
         // 2. Determine agent to use
         let finalAgentType: AgentType;
@@ -527,36 +884,46 @@ Examples:
             intent = 'INIT';
             console.log(`🚀 First message, using projectInitializer`);
         } else {
-            // Subsequent messages - classify intent
-            console.log(`🎯 Classifying intent for: "${userMessage.substring(0, 50)}..."`);
+            // Stage-aware routing: pick from 2-3 eligible agents for the current stage
+            console.log(`🎯 [Orchestrator] Stage-aware routing for: "${userMessage.substring(0, 50)}..."`);
 
             try {
-                // Call orchestrator agent to classify intent
-                const intentResult = await this.runner.runAgent(
-                    'orchestrator',
-                    [{ role: 'user', content: userMessage }],
-                    { stream: false }
-                );
+                const projectState = await ProjectStateService.loadProjectState(this.chatId!);
+                const stageConfig = STAGE_CONFIG[projectState.projectStage];
 
-                intent = intentResult.response.trim().toUpperCase();
-                console.log(`🎯 Detected intent: ${intent}`);
+                if (projectState.autoOrchestration) {
+                    // Build a focused prompt that only exposes eligible agents
+                    const orchestratorPrompt = buildOrchestratorPrompt(userMessage, projectState);
 
-                // Map intent to agent
-                const intentAgentMap: Record<string, AgentType> = {
-                    'BOM': 'bomGenerator',
-                    'CODE': 'codeGenerator',
-                    'WIRING': 'wiringDiagram',
-                    'DEBUG': 'debugger',
-                    'DATASHEET': 'datasheetAnalyzer',
-                    'BUDGET': 'budgetOptimizer',
-                    'CHAT': 'conversational'
-                };
+                    const intentResult = await this.runner.runAgent(
+                        'orchestrator',
+                        [{ role: 'user', content: orchestratorPrompt }],
+                        { stream: false }
+                    );
 
-                finalAgentType = intentAgentMap[intent] || 'conversational';
-                console.log(`🤖 Routing to agent: ${finalAgentType}`);
+                    const selectedAgent = intentResult.response.trim().toLowerCase() as AgentType;
+                    console.log(`🎯 [Orchestrator] Stage '${projectState.projectStage}' — LLM picked: ${selectedAgent}`);
+
+                    // Validate selection against eligible list, fallback if invalid
+                    if (stageConfig.eligibleAgents.includes(selectedAgent)) {
+                        finalAgentType = selectedAgent;
+                        intent = `${projectState.projectStage.toUpperCase()}_STAGE`;
+                    } else {
+                        finalAgentType = stageConfig.eligibleAgents[0];
+                        intent = 'FALLBACK';
+                        console.warn(`⚠️ [Orchestrator] LLM selected ineligible agent '${selectedAgent}', using fallback: ${finalAgentType}`);
+                    }
+
+                    console.log(`🤖 [Orchestrator] Stage: ${projectState.projectStage} | Agent: ${finalAgentType}`);
+                } else {
+                    // Auto-orchestration off: default to first eligible agent for stage
+                    finalAgentType = stageConfig.eligibleAgents[0];
+                    intent = 'MANUAL_MODE';
+                    console.log(`🔧 [Orchestrator] Manual mode — defaulting to: ${finalAgentType}`);
+                }
 
             } catch (error) {
-                console.error('Intent classification failed, falling back to conversational:', error);
+                console.error('[Orchestrator] Stage-aware routing failed, falling back to conversational:', error);
                 finalAgentType = 'conversational';
                 intent = 'CHAT';
             }
@@ -606,11 +973,17 @@ Examples:
                         onToolCall(toolCall);
                     }
 
+                    // Execute tool and RETURN the result (required for multi-turn loop)
                     if (toolExecutor) {
-                        await toolExecutor.executeToolCall(toolCall);
+                        return await toolExecutor.executeToolCall(toolCall);
                     }
+                    
+                    // ponytail: Default result if no executor
+                    return { success: true };
                 },
-                chatId: this.chatId || undefined  // NEW: Pass chatId for context injection
+                chatId: this.chatId || undefined,  // Pass chatId for context injection
+                overrideProvider,  // NEW: Pass provider override from session
+                overrideModel  // NEW: Pass model override from session
             }
         );
 
@@ -622,6 +995,23 @@ Examples:
             console.log(`📝 [Orchestrator] First 150 chars: "${response.substring(0, 150)}..."`);
         } else {
             console.error(`❌ [Orchestrator] WARNING: Agent returned EMPTY response!`);
+        }
+
+        // 6.5 Parse questions from response
+        const parsed = parseQuestions(response);
+        if (parsed.hasQuestions) {
+            console.log(`❓ [Orchestrator] Questions detected: ${parsed.questions?.questions.length} questions`);
+        }
+
+        // 6.6 Check for stage advancement (non-blocking, only if agent wrote an artifact)
+        if (this.chatId && toolCalls.some((tc: ToolCall) => tc.name === 'write')) {
+            ProjectStateService.checkAndAdvanceStage(this.chatId).then((advanced) => {
+                if (advanced) {
+                    console.log(`🎉 [Orchestrator] Stage advanced for chat: ${this.chatId}`);
+                }
+            }).catch((err: any) => {
+                console.error('[Orchestrator] Stage advancement check failed:', err.message);
+            });
         }
 
         // 6.6 Check for key rotation events and notify immediately
@@ -648,12 +1038,18 @@ Examples:
                 const messagePayload = {
                     chat_id: this.chatId,
                     role: "assistant" as const,
-                    content: response,
+                    content: parsed.text, // Store clean text without question JSON
                     agent_name: finalAgentType,
                     agent_id: finalAgentType, // NEW: Add agent_id for proper avatar display
                     sequence_number: seq,
                     intent: intent,
-                    metadata: (toolCalls.length > 0 ? { toolCalls } : null) as any // Persist tool calls in metadata
+                    metadata: {
+                        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+                        ...(parsed.hasQuestions ? { 
+                            questions: parsed.questions,
+                            hasQuestions: true 
+                        } : {})
+                    } as any
                 };
 
                 console.log(`📝 [Orchestrator] Message payload prepared:`, {
@@ -698,15 +1094,17 @@ Examples:
         const isReadyToLock = response.toLowerCase().includes("lock this design") ||
             response.toLowerCase().includes("shall we lock");
 
-        // Return with agent metadata, tool calls, and rotation event
+        // Return with agent metadata, tool calls, questions, and rotation event
         return {
-            response,
+            response: parsed.text, // Return clean text without question JSON
             isReadyToLock,
             agentType: finalAgentType,
             agentName: agentConfig.name,
             agentIcon: agentConfig.icon,
             intent,
             toolCalls, // NEW: Include tool calls for frontend
+            questions: parsed.questions, // NEW: Include questions for frontend
+            hasQuestions: parsed.hasQuestions, // NEW: Include questions flag
             keyRotationEvent // Include rotation event for client-side toasts (also sent via callback)
         };
     }
@@ -731,7 +1129,6 @@ Examples:
         if (this.chatId) {
             // Persist Artifact
             // Note: In real impl, parse JSON and insert into 'parts' table via ComponentService
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const artifact = await ArtifactService.createArtifact("system", {
                 chat_id: this.chatId,
                 type: 'bom',
@@ -762,7 +1159,6 @@ Examples:
         const code = result.response;
 
         if (this.chatId) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const artifact = await ArtifactService.createArtifact("system", {
                 chat_id: this.chatId,
                 type: 'code',

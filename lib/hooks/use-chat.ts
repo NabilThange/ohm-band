@@ -273,8 +273,7 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
 
                             // 2. Map tool to drawer and dispatch open event
                             const toolDrawerMap: Record<string, string> = {
-                                // New simplified tools
-                                'open_drawer': 'drawer',
+                                // New simplified tools - these have drawer in arguments
                                 'read': 'read',
                                 'write': 'write',
                                 'delete': 'delete',
@@ -296,7 +295,15 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                                 'update_budget': 'budget'
                             };
 
-                            const drawer = toolDrawerMap[toolName];
+                            // ponytail: open_drawer passes drawer name in arguments, others use static mapping
+                            let drawer = toolDrawerMap[toolName];
+                            if (toolName === 'open_drawer') {
+                                drawer = data.toolCall.arguments?.drawer;
+                                if (!drawer) {
+                                    console.warn('[useChat] ⚠️ open_drawer called without drawer argument:', data.toolCall);
+                                }
+                            }
+
                             if (drawer) {
                                 const drawerOpenStartTime = performance.now();
                                 console.log(`[useChat] 🔓 OPTIMISTIC OPENING: Dispatching drawer open event for ${drawer} at`, drawerOpenStartTime.toFixed(2), 'ms');
@@ -347,6 +354,21 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                                     showAllKeysExhaustedToast(event.totalKeys || 0);
                                 });
                             }
+                        } else if (data.type === 'questions') {
+                            // NEW: Questions notification - agent needs clarification
+                            console.log('[useChat] ❓ Questions received:', data.questions);
+                            
+                            // Update message with questions in metadata
+                            setMessages(prev => prev.map(m =>
+                                m.id === aiTempId ? {
+                                    ...m,
+                                    metadata: { 
+                                        ...(m.metadata as any || {}),
+                                        questions: data.questions,
+                                        hasQuestions: true
+                                    }
+                                } : m
+                            ));
                         } else if (data.type === 'metadata') {
                             console.log('[useChat] Received final metadata:', data.agent);
                             // Final metadata - may contain additional info like key rotation
@@ -370,8 +392,9 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                             if (data.toolCalls && data.toolCalls.length > 0) {
                                 console.log('[useChat] Tool calls detected:', data.toolCalls);
                                 data.toolCalls.forEach((toolCall: any) => {
-                                    console.log('[useChat] Showing toast for tool:', toolCall.function.name);
-                                    showToolCallToast(toolCall.function.name);
+                                    const toolName = toolCall.function?.name || toolCall.name;
+                                    console.log('[useChat] Showing toast for tool:', toolName);
+                                    showToolCallToast(toolName);
                                 });
 
                                 // Dispatch custom event for ChatPane to add drawer link buttons

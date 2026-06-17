@@ -23,6 +23,8 @@ export interface BOMData {
     warnings?: string[];
 }
 
+import { parseQuestions } from "./agents/question-parser";
+
 export interface CodeFile {
     path: string;
     content: string;
@@ -184,6 +186,11 @@ export const extractContextFromMessage = (content: string): ProjectContextData =
  */
 export const parseMessageContent = (content: string) => {
     let cleanedText = content;
+
+    // Remove questions tag/JSON from content so it doesn't render in Markdown
+    const parsedQ = parseQuestions(cleanedText);
+    cleanedText = parsedQ.text;
+
     let bomData: BOMData | null = null;
     let codeData: CodeData | null = null;
     let isStreamingBOM = false;

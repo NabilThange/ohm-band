@@ -7,6 +7,8 @@ import InlineCodeCard from "./InlineCodeCard"
 import { CodeBlock } from "@/components/ui/code-block"
 import { Message as UIMessage, MessageContent, MessageAvatar } from "@/components/ui/message"
 import { getAgentIdentity, findAgentIdByName, AGENT_IDENTITIES } from "@/lib/agents/agent-identities"
+import { QuestionComponent } from "./QuestionComponent"
+import { formatAnswersForAgent } from "@/lib/agents/question-parser"
 
 export default function Message({ role, children, metadata }) {
     const isUser = role === "user"
@@ -16,6 +18,10 @@ export default function Message({ role, children, metadata }) {
 
     // Extract tool calls and agent info from metadata
     const toolCalls = metadata?.toolCalls || []
+
+    // Extract questions from metadata
+    const questions = metadata?.questions
+    const hasQuestions = metadata?.hasQuestions
 
     // Try to get agentId from multiple sources
     // Priority: metadata.agentId > metadata.agent_id > agent_name (from message object)
@@ -57,8 +63,39 @@ export default function Message({ role, children, metadata }) {
             )}
             <MessageContent variant={isUser ? "contained" : "flat"}>
                 {isUser ? (
-                    // User messages: render as plain text
-                    cleanedText
+                    // User messages: render with Markdown support
+                    <div className="prose prose-sm max-w-none prose-headings:mt-3 prose-headings:mb-2 prose-p:my-1.5 prose-pre:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-foreground [&_*]:text-foreground dark:prose-invert">
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
+                            components={{
+                                code({ node, inline, className, children, ...props }) {
+                                    return (
+                                        <code
+                                            className="px-1.5 py-0.5 rounded bg-muted text-foreground font-mono text-xs"
+                                            {...props}
+                                        >
+                                            {children}
+                                        </code>
+                                    )
+                                },
+                                a({ node, children, ...props }) {
+                                    return (
+                                        <a
+                                            className="text-primary hover:text-primary/80 hover:underline"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            {...props}
+                                        >
+                                            {children}
+                                        </a>
+                                    )
+                                },
+                            }}
+                        >
+                            {cleanedText}
+                        </ReactMarkdown>
+                    </div>
                 ) : (
                     // AI messages: render with Markdown + BOM Card (Sequential Rendering)
                     <div className="flex flex-col gap-2">
@@ -262,6 +299,25 @@ export default function Message({ role, children, metadata }) {
                                             </div>
                                         );
                                     })()}
+
+                                    {/* Question Component - shown when agent needs clarification */}
+                                    {hasQuestions && questions && (
+                                        <QuestionComponent
+                                            questions={questions.questions}
+                                            onSubmit={(answers) => {
+                                                // Format answers and send as new message
+                                                const formattedAnswers = formatAnswersForAgent(
+                                                    questions.questions,
+                                                    answers
+                                                );
+                                                
+                                                // Dispatch event to send answers back to agent
+                                                window.dispatchEvent(new CustomEvent('send-question-answers', {
+                                                    detail: { answers: formattedAnswers }
+                                                }));
+                                            }}
+                                        />
+                                    )}
                                 </>
                             );
                         })()}

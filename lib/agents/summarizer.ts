@@ -171,11 +171,14 @@ export class ConversationSummarizer {
     agent_name: string | null;
   }>> {
     try {
+      // ponytail: Handle legacy summaries with no sequence number
+      const seqNum = lastSequenceNumber || 0;
+      
       const { data, error } = await supabase
         .from('messages')
         .select('id, sequence_number, role, content, agent_name')
         .eq('chat_id', this.chatId)
-        .gt('sequence_number', lastSequenceNumber)
+        .gt('sequence_number', seqNum)
         .order('sequence_number', { ascending: true });
 
       if (error) throw error;
@@ -391,13 +394,20 @@ Return ONLY the updated summary text, no preamble.`;
 
     const snapshot = current.summary.projectSnapshot;
 
+    // ponytail: Handle legacy summaries without projectSnapshot
+    if (!snapshot) {
+      return `**CONVERSATION CONTEXT** (${current.summary.messageCount} messages):
+
+${current.summary.summary}`;
+    }
+
     return `**CONVERSATION CONTEXT** (${current.summary.messageCount} messages):
 
 ${current.summary.summary}
 
 **Quick Facts:**
-- Components: ${snapshot.components.slice(0, 5).join(', ') || 'None yet'}
-- Code Files: ${snapshot.codeFiles.slice(0, 3).join(', ') || 'None yet'}
-- Open Questions: ${snapshot.openQuestions.length || 0}`;
+- Components: ${snapshot.components?.slice(0, 5).join(', ') || 'None yet'}
+- Code Files: ${snapshot.codeFiles?.slice(0, 3).join(', ') || 'None yet'}
+- Open Questions: ${snapshot.openQuestions?.length || 0}`;
   }
 }

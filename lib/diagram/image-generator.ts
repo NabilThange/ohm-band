@@ -10,6 +10,7 @@
 
 import { supabase } from '@/lib/supabase/client';
 import { KeyManager } from '@/lib/agents/key-manager';
+import { getProviderConfig } from '@/lib/agents/provider-config';
 
 interface ImageGenerationResult {
   url: string;
@@ -62,8 +63,8 @@ export class ImageGenerator {
       try {
         console.log(`[ImageGenerator] Attempt ${attempt}/${maxRetries}`);
 
-        // Call BYTEZ API with CORRECT endpoint structure
-        const imageUrl = await this.callBytezAPI(prompt, model);
+        // Call Provider API
+        const imageUrl = await this.callProviderAPI(prompt, model);
 
         // Download image from BYTEZ URL
         console.log('[ImageGenerator] Downloading image from BYTEZ...');
@@ -113,75 +114,12 @@ export class ImageGenerator {
    * Returns the image URL (not base64!)
    * Uses KeyManager for automatic key rotation on failures
    */
-  private async callBytezAPI(prompt: string, model: string): Promise<string> {
-    // Get current API key from KeyManager
-    const apiKey = this.keyManager.getCurrentKey();
-
-    if (!apiKey) {
-      throw new Error('No BYTEZ API keys available');
-    }
-
-    // CORRECT: Model-specific endpoint, NOT /v1/images/generations
-    const endpoint = `https://api.bytez.com/models/v2/${model}`;
-
-    console.log(`[ImageGenerator] Calling ${endpoint} with key #${this.keyManager.getTotalKeys()}`);
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': apiKey, // NO "Bearer" prefix!
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: prompt  // "text" not "prompt"!
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        // Check if it's an auth error (bad API key)
-        if (response.status === 401 || response.status === 403) {
-          console.error(`[ImageGenerator] API key failed with ${response.status}`);
-          this.keyManager.markCurrentKeyAsFailed();
-
-          // Try to rotate to next key
-          if (this.keyManager.rotateKey()) {
-            console.log('[ImageGenerator] Retrying with next API key...');
-            // Recursive retry with new key
-            return this.callBytezAPI(prompt, model);
-          } else {
-            throw new Error('All BYTEZ API keys exhausted');
-          }
-        }
-
-        throw new Error(`BYTEZ API error ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      // BYTEZ returns: { error: string | null, output: string }
-      if (data.error) {
-        throw new Error(`BYTEZ generation error: ${data.error}`);
-      }
-
-      if (!data.output) {
-        throw new Error('BYTEZ response missing output field');
-      }
-
-      // Record successful API call
-      this.keyManager.recordSuccess();
-
-      console.log(`[ImageGenerator] Received image URL: ${data.output}`);
-      return data.output;
-    } catch (error: any) {
-      // If it's a network error or other non-auth error, just throw
-      if (!error.message?.includes('exhausted')) {
-        console.error('[ImageGenerator] API call failed:', error.message);
-      }
-      throw error;
-    }
+  private async callProviderAPI(prompt: string, model: string): Promise<string> {
+    const providerConfig = getProviderConfig();
+    throw new Error(
+      `Image generation is not supported by ${providerConfig.name}. ` +
+      `This feature is temporarily disabled pending provider support.`
+    );
   }
 
   /**
@@ -259,7 +197,8 @@ export class ImageGenerator {
    * Check if service is properly configured
    */
   isConfigured(): boolean {
-    return this.keyManager.getHealthyKeyCount() > 0;
+    // Image generation is temporarily disabled for all multi-providers
+    return false;
   }
 
   /**

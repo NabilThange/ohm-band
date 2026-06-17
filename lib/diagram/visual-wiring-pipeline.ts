@@ -11,6 +11,7 @@ import { PromptBuilder } from './prompt-builder';
 import { ImageGenerator } from './image-generator';
 import { SVGSchematicGenerator } from './svg-generator';
 import { ArtifactService } from '@/lib/db/artifacts';
+import { getProviderConfig } from '@/lib/agents/provider-config';
 
 interface WiringData {
   connections: Array<{
@@ -219,8 +220,8 @@ export class VisualWiringPipeline {
         // Error is already handled in generateAIImages, just log here
       });
     } else {
-      console.warn('[VisualWiringPipeline] BYTEZ API not configured - skipping AI image generation');
-      console.warn('[VisualWiringPipeline] Add BYTEZ_API_KEY to .env.local to enable');
+      const providerConfig = getProviderConfig();
+      console.warn(`[VisualWiringPipeline] Image generation is not supported by the active provider (${providerConfig.name}) - skipping AI image generation`);
     }
 
     return {

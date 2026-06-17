@@ -405,7 +405,7 @@ You can view and copy the files in the **Code Drawer**.`
                                     >
                                         <div
                                             className={`max-w-[80%] rounded-lg px-4 py-3 shadow-sm ${message.role === 'user'
-                                                ? 'bg-primary text-primary-foreground'
+                                                ? 'bg-primary text-black'
                                                 : 'glass border-dashed-tech'
                                                 }`}
                                         >

@@ -237,6 +237,14 @@ export type Database = {
                     budget_target: number | null
                     last_active_at: string | null
                     created_at: string
+                    selected_provider: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_model: string | null
+                    provider_metadata: Json | null
+                    // Stage-gating fields
+                    project_stage: 'planning' | 'design' | 'build' | 'fix'
+                    stage_override: boolean
+                    auto_orchestration: boolean
+                    stage_history: Json
                 }
                 Insert: {
                     id?: string
@@ -249,6 +257,14 @@ export type Database = {
                     budget_target?: number | null
                     last_active_at?: string | null
                     created_at?: string
+                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_model?: string | null
+                    provider_metadata?: Json | null
+                    // Stage-gating fields
+                    project_stage?: 'planning' | 'design' | 'build' | 'fix'
+                    stage_override?: boolean
+                    auto_orchestration?: boolean
+                    stage_history?: Json
                 }
                 Update: {
                     id?: string
@@ -261,6 +277,14 @@ export type Database = {
                     budget_target?: number | null
                     last_active_at?: string | null
                     created_at?: string
+                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_model?: string | null
+                    provider_metadata?: Json | null
+                    // Stage-gating fields
+                    project_stage?: 'planning' | 'design' | 'build' | 'fix'
+                    stage_override?: boolean
+                    auto_orchestration?: boolean
+                    stage_history?: Json
                 }
                 Relationships: []
             }

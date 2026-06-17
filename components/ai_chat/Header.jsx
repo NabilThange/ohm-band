@@ -1,18 +1,23 @@
 "use client"
 import { ChevronDownIcon } from "@/components/ui/animated-icons"
-import { Asterisk, MoreHorizontal, Menu } from "lucide-react"
+import { Asterisk, MoreHorizontal, Menu, MessageSquare } from "lucide-react"
 import { useState, useEffect } from "react"
 import GhostIconButton from "./GhostIconButton"
 import { getAllAgentIdentities, getAgentIdentity } from "@/lib/agents/agent-identities"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 export default function Header({
+    chatId,
+    autoOrchestration,
+    onAutoOrchestrationChange,
     createNewChat,
     sidebarCollapsed,
     setSidebarOpen,
     currentAgent,  // Receive from parent
     onAgentChange
 }) {
+    const router = useRouter()
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const [manualOverride, setManualOverride] = useState(null)
 
@@ -51,10 +56,45 @@ export default function Header({
                 </button>
             )}
 
-            <div className="hidden md:flex relative">
+            <div className="hidden md:flex relative items-center gap-3">
+                {/* Auto-Orchestration Toggle */}
+                {chatId && (
+                    <div className="flex items-center gap-2 border-r border-border pr-3">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                            Auto Routing
+                        </span>
+                        <button
+                            role="switch"
+                            aria-checked={autoOrchestration}
+                            onClick={async () => {
+                                const newVal = !autoOrchestration;
+                                onAutoOrchestrationChange?.(newVal);
+                                await fetch('/api/agents/chat-settings', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ chatId, auto_orchestration: newVal })
+                                }).catch(err => console.error(err));
+                            }}
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                                autoOrchestration ? 'bg-primary' : 'bg-input'
+                            }`}
+                        >
+                            <span
+                                className={`pointer-events-none block h-3 w-3 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                                    autoOrchestration ? 'translate-x-3' : 'translate-x-0'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                )}
+
                 <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm font-semibold tracking-tight hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    disabled={autoOrchestration}
+                    className={`inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        autoOrchestration ? 'opacity-70 cursor-not-allowed' : 'hover:bg-accent'
+                    }`}
+                    title={autoOrchestration ? "Disable auto routing to select manually" : "Select an agent"}
                 >
                     <div className="relative w-5 h-5 flex-shrink-0">
                         <Image
@@ -128,6 +168,14 @@ export default function Header({
             </div>
 
             <div className="ml-auto flex items-center gap-2">
+                <button
+                    onClick={() => router.push('/chats')}
+                    className="hidden md:inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm font-semibold tracking-tight hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    aria-label="View All Chats"
+                >
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Recent Chats</span>
+                </button>
                 <GhostIconButton label="More">
                     <MoreHorizontal className="h-4 w-4" />
                 </GhostIconButton>

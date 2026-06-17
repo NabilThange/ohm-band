@@ -7,7 +7,7 @@ import {
 
 /**
  * Production-Grade Key Manager with Health Tracking
- * Manages rotation and health status of Bytez API keys
+ * Manages rotation and health status of Multi-Provider API keys
  */
 export interface KeyRotationEvent {
     type: 'key_failed' | 'key_rotated' | 'all_keys_exhausted';
@@ -22,6 +22,7 @@ export class KeyManager {
     private static instance: KeyManager;
     private keys: string[] = [];
     private currentIndex: number = 0;
+    private currentProvider: string = ''; // Track current provider
     private failedKeys: Set<number> = new Set();
     private metrics = {
         usage: new Map<number, number>(),
@@ -52,46 +53,52 @@ export class KeyManager {
 
     /**
      * Load keys from environment with fallback support
-     * Supports new numbered format: BYTEZ_API_KEY_1, BYTEZ_API_KEY_2, etc.
-     * Also supports legacy comma-separated format for backwards compatibility
+     * Supports dynamic provider keys based on LLM_PROVIDER (e.g., OPENROUTER_API_KEY_1, GROQ_API_KEY_1, etc.)
      */
-    private loadKeys() {
+    private loadKeys(provider?: string) {
         const keys: string[] = [];
-
-        // Try new numbered format first: BYTEZ_API_KEY_1, BYTEZ_API_KEY_2, etc.
-        for (let i = 1; i <= 20; i++) { // Support up to 20 keys
-            const key = process.env[`BYTEZ_API_KEY_${i}`] || process.env[`NEXT_PUBLIC_BYTEZ_API_KEY_${i}`];
+        const activeProvider = provider || process.env.LLM_PROVIDER || 'openrouter';
+        this.currentProvider = activeProvider;
+        
+        // Provider-specific key patterns
+        const keyPatterns: Record<string, string[]> = {
+            'openrouter': ['OPENROUTER_API_KEY', 'NEXT_PUBLIC_OPENROUTER_API_KEY'],
+            'groq': ['GROQ_API_KEY', 'NEXT_PUBLIC_GROQ_API_KEY'],
+            'aiml': ['AIML_API_KEY', 'NEXT_PUBLIC_AIML_API_KEY']
+        };
+        
+        const patterns = keyPatterns[activeProvider] || keyPatterns['openrouter'];
+        
+        // Try numbered format: PROVIDER_API_KEY_1, PROVIDER_API_KEY_2, etc. (limit to 2 per provider)
+        for (let i = 1; i <= 2; i++) {
+            const key = process.env[`${patterns[0]}_${i}`] || process.env[`${patterns[1]}_${i}`];
             if (key && key.trim().length > 0) {
                 keys.push(key.trim());
-            } else {
-                // Stop at first gap (no more sequential keys)
-                break;
             }
         }
-
-        // Fallback to legacy comma-separated format
+        
+        // Fallback to comma-separated or single key
         if (keys.length === 0) {
-            const keysString = process.env.BYTEZ_API_KEYS || "";
-            const legacyKey = process.env.BYTEZ_API_KEY || process.env.NEXT_PUBLIC_BYTEZ_API_KEY;
-
-            const parsedKeys = keysString
-                .split(",")
-                .map(k => k.trim())
-                .filter(k => k.length > 0);
-
+            const keysString = process.env[`${patterns[0]}S`] || ""; // e.g., OPENROUTER_API_KEYS
+            const legacyKey = process.env[patterns[0]] || process.env[patterns[1]];
+            
+            const parsedKeys = keysString.split(",").map(k => k.trim()).filter(k => k.length > 0).slice(0, 2);
+            
             if (parsedKeys.length > 0) {
                 keys.push(...parsedKeys);
             } else if (legacyKey) {
                 keys.push(legacyKey);
             }
         }
-
+        
         if (keys.length === 0) {
-            throw new Error("❌ CRITICAL: No BYTEZ_API_KEY_* found in environment. Please set BYTEZ_API_KEY_1, BYTEZ_API_KEY_2, etc.");
+            throw new Error(`❌ CRITICAL: No ${activeProvider.toUpperCase()} API keys found. Please set ${patterns[0]}_1, ${patterns[0]}_2, etc.`);
         }
-
+        
         this.keys = keys;
-        console.log(`🔑 KeyManager initialized with ${this.keys.length} keys`);
+        this.currentIndex = 0;
+        this.failedKeys.clear(); // Reset failed keys for new provider
+        console.log(`🔑 KeyManager loaded ${this.keys.length} keys for ${activeProvider}`);
 
         // Show toast notification if running in browser
         if (typeof window !== 'undefined') {
@@ -113,7 +120,45 @@ export class KeyManager {
     }
 
     /**
+     * Get current provider name
+     */
+    getCurrentProvider(): string {
+        return this.currentProvider;
+    }
+
+    /**
+     * Reload keys for a specific provider (public method)
+     * This allows dynamic provider switching at runtime
+     */
+    reloadKeysForProvider(provider: string): void {
+        this.loadKeys(provider);
+    }
+
+    /**
+     * Switch to a different provider and reload keys
+     * Returns true if switch was successful
+     */
+    switchProvider(newProvider: string): boolean {
+        try {
+            console.log(`🔄 Switching provider: ${this.currentProvider} → ${newProvider}`);
+            this.loadKeys(newProvider);
+            return true;
+        } catch (error: any) {
+            console.error(`❌ Failed to switch to ${newProvider}:`, error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Check if all keys for current provider are exhausted
+     */
+    allKeysExhausted(): boolean {
+        return this.failedKeys.size >= this.keys.length;
+    }
+
+    /**
      * Rotate to next healthy key (skips failed ones)
+     * Returns true if rotation succeeded, false if all keys exhausted
      */
     rotateKey(): boolean {
         const startIndex = this.currentIndex;
@@ -148,14 +193,14 @@ export class KeyManager {
 
             // Prevent infinite loop - if we've checked all keys, fail
             if (attempts >= this.keys.length) {
-                console.error("❌ All keys have failed");
+                console.error(`❌ All keys exhausted for ${this.currentProvider}`);
 
                 // Record event for API to return to client
                 this.lastEvent = {
                     type: 'all_keys_exhausted',
                     totalKeys: this.keys.length,
                     remainingKeys: 0,
-                    message: `All ${this.keys.length} API keys exhausted`
+                    message: `All ${this.keys.length} API keys exhausted for ${this.currentProvider}`
                 };
 
                 // Show error toast when all keys exhausted (only if running in browser)

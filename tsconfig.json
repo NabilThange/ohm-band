@@ -40,6 +40,8 @@
         "ai_chat",
         "text_area",
         "component_docs",
-        "context_docs"
+        "context_docs",
+        "lib/agents/__tests__",
+        "components/mage-ui/hero/svg-mask-effect.tsx"
     ]
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { XIcon } from '@/components/ui/animated-icons'
-import { Mic, Paperclip, Send } from 'lucide-react';
+import { Mic, Paperclip, Send, ChevronDown } from 'lucide-react';
 import ComposerActionsPopover from '@/components/ai_chat/ComposerActionsPopover';
 import { cn as cls } from '@/lib/utils';
 
@@ -26,12 +26,25 @@ const getRandomPlaceholder = () => {
     return PLACEHOLDER_OPTIONS[Math.floor(Math.random() * PLACEHOLDER_OPTIONS.length)];
 };
 
+interface Provider {
+    id: string;
+    name: string;
+}
+
+interface Model {
+    id: string;
+    name: string;
+    provider: string;
+    pricing: { free: boolean };
+}
+
 interface ChatPromptInputProps {
     onSendMessage: (message: string) => void;
     isLoading?: boolean;
+    chatId?: string;
 }
 
-export function ChatPromptInput({ onSendMessage, isLoading = false }: ChatPromptInputProps) {
+export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: ChatPromptInputProps) {
     const [message, setMessage] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [filteredCommands, setFilteredCommands] = useState(COMMANDS);
@@ -39,6 +52,85 @@ export function ChatPromptInput({ onSendMessage, isLoading = false }: ChatPrompt
     const [helpOpen, setHelpOpen] = useState(false);
     const [placeholder, setPlaceholder] = useState(getRandomPlaceholder());
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Provider/Model state
+    const [providers, setProviders] = useState<Provider[]>([]);
+    const [models, setModels] = useState<Model[]>([]);
+    const [selectedProvider, setSelectedProvider] = useState<string>('groq');
+    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [showProviderMenu, setShowProviderMenu] = useState(false);
+    const [showModelMenu, setShowModelMenu] = useState(false);
+    const providerMenuRef = useRef<HTMLDivElement>(null);
+    const modelMenuRef = useRef<HTMLDivElement>(null);
+
+    // Load providers and models
+    useEffect(() => {
+        fetch('/api/agents/providers')
+            .then(res => res.json())
+            .then(data => {
+                setProviders(data.providers);
+                setModels(data.models);
+                setSelectedProvider(data.defaultProvider);
+            })
+            .catch(err => console.error('Failed to load providers:', err));
+    }, []);
+
+    // Load session preferences
+    useEffect(() => {
+        if (chatId) {
+            fetch(`/api/chat/${chatId}/provider`)
+                .then(res => res.json())
+                .then(data => {
+                    setSelectedProvider(data.provider || 'groq');
+                    setSelectedModel(data.model || '');
+                })
+                .catch(err => console.error('Failed to load session preferences:', err));
+        }
+    }, [chatId]);
+
+    // Close menus when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (providerMenuRef.current && !providerMenuRef.current.contains(e.target as Node)) {
+                setShowProviderMenu(false);
+            }
+            if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+                setShowModelMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const updateSessionProvider = async (provider: string, model: string) => {
+        if (!chatId) return;
+        try {
+            await fetch(`/api/chat/${chatId}/provider`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider, model })
+            });
+        } catch (error) {
+            console.error('Error updating provider:', error);
+        }
+    };
+
+    const handleProviderChange = async (providerId: string) => {
+        setSelectedProvider(providerId);
+        setSelectedModel(''); // Reset model
+        setShowProviderMenu(false);
+        await updateSessionProvider(providerId, '');
+    };
+
+    const handleModelChange = async (modelId: string) => {
+        setSelectedModel(modelId);
+        setShowModelMenu(false);
+        await updateSessionProvider(selectedProvider, modelId);
+    };
+
+    const filteredModels = models.filter(m => m.provider === selectedProvider);
+    const currentProvider = providers.find(p => p.id === selectedProvider);
+    const currentModel = models.find(m => m.id === selectedModel);
 
     // Filter commands when user types
     useEffect(() => {
@@ -217,6 +309,82 @@ export function ChatPromptInput({ onSendMessage, isLoading = false }: ChatPrompt
                             />
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
+                                    {/* Provider Selector */}
+                                    <div className="relative" ref={providerMenuRef}>
+                                        <button
+                                            onClick={() => setShowProviderMenu(!showProviderMenu)}
+                                            className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
+                                            title="Select LLM Provider"
+                                            disabled={isLoading}
+                                        >
+                                            <span className="font-medium">{currentProvider?.name || 'Provider'}</span>
+                                            <ChevronDown className="w-3 h-3" />
+                                        </button>
+                                        {showProviderMenu && (
+                                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+                                                {providers.map(p => (
+                                                    <button
+                                                        key={p.id}
+                                                        onClick={() => handleProviderChange(p.id)}
+                                                        className={cls(
+                                                            "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                            selectedProvider === p.id ? "bg-accent/50 font-medium" : ""
+                                                        )}
+                                                    >
+                                                        {p.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Model Selector */}
+                                    <div className="relative" ref={modelMenuRef}>
+                                        <button
+                                            onClick={() => setShowModelMenu(!showModelMenu)}
+                                            className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
+                                            title="Select Model"
+                                            disabled={isLoading || !filteredModels.length}
+                                        >
+                                            <span className="font-medium max-w-[120px] truncate">
+                                                {currentModel?.name || 'Auto'}
+                                            </span>
+                                            <ChevronDown className="w-3 h-3" />
+                                        </button>
+                                        {showModelMenu && (
+                                            <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto">
+                                                <button
+                                                    onClick={() => handleModelChange('')}
+                                                    className={cls(
+                                                        "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                        !selectedModel ? "bg-accent/50 font-medium" : ""
+                                                    )}
+                                                >
+                                                    Auto-select (Default)
+                                                </button>
+                                                {filteredModels.map(m => (
+                                                    <button
+                                                        key={m.id}
+                                                        onClick={() => handleModelChange(m.id)}
+                                                        className={cls(
+                                                            "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                            selectedModel === m.id ? "bg-accent/50 font-medium" : ""
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="truncate">{m.name}</span>
+                                                            {m.pricing.free && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded">Free</span>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="w-px h-4 bg-border" />
+
                                     <ComposerActionsPopover>
                                         <button
                                             className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"

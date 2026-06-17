@@ -255,7 +255,7 @@ export function AgentChatInterface({ initialPrompt }: AgentChatInterfaceProps) {
                                     >
                                         <div
                                             className={`max-w-2xl px-4 py-3 rounded-lg font-mono text-sm ${message.role === "user"
-                                                ? "bg-primary text-primary-foreground"
+                                                ? "bg-primary text-black"
                                                 : "bg-muted text-foreground"
                                                 } ${message.role === "assistant" ? "w-full max-w-3xl" : ""}`}
                                         >

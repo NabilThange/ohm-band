@@ -7,6 +7,7 @@
 
 import { supabase } from '@/lib/supabase/client';
 import { buildFritzingPrompt, CircuitJson, validateCircuitJson } from '../diagram-generation/prompt-builder';
+import { getProviderConfig } from '@/lib/agents/provider-config';
 
 /**
  * Generate a Fritzing-style breadboard diagram for a circuit
@@ -100,52 +101,11 @@ export async function generateFritzingDiagram(
  * Call BYTEZ API to generate image using Google Imagen 4
  */
 async function callBytezImageAPI(prompt: string, referenceType: string): Promise<string> {
-    const apiKey = process.env.BYTEZ_API_KEY;
-
-    if (!apiKey) {
-        throw new Error('BYTEZ_API_KEY environment variable is not set');
-    }
-
-    const modelName = 'google/imagen-4.0-ultra-generate-001';
-    console.log(`[BYTEZ API] Generating image with ${referenceType} reference using ${modelName}`);
-
-    try {
-        const response = await fetch(`https://api.bytez.com/models/v2/${modelName}`, {
-            method: 'POST',
-            headers: {
-                'Authorization': apiKey, // Docs example: "headers: {Authorization: '<api-key>'}"
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                text: prompt
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[BYTEZ API] Error response:', errorText);
-            throw new Error(`BYTEZ API error (${response.status}): ${errorText}`);
-        }
-
-        const data = await response.json();
-
-        if (data.error) {
-            throw new Error(`BYTEZ API returned error: ${data.error}`);
-        }
-
-        if (!data.output) {
-            throw new Error('Invalid response from BYTEZ API: missing output URL');
-        }
-
-        console.log('[BYTEZ API] Image generated successfully');
-        return data.output;
-
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`BYTEZ API call failed: ${error.message}`);
-        }
-        throw error;
-    }
+    const providerConfig = getProviderConfig();
+    throw new Error(
+        `Image generation is not supported by the active provider (${providerConfig.name}). ` +
+        `This feature is temporarily disabled.`
+    );
 }
 
 /**

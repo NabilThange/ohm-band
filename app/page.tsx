@@ -69,6 +69,9 @@ export default function Home() {
                             <Link href="/marketplace" className="text-sm font-sans text-foreground hover:opacity-75 transition">
                                 Marketplace
                             </Link>
+                            <Link href="/chats" className="text-sm font-sans text-foreground hover:opacity-75 transition">
+                                My Chats
+                            </Link>
                             <a href="#" className="text-sm font-sans text-foreground hover:opacity-75 transition">
                                 Resources
                             </a>

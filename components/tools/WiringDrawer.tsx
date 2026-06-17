@@ -293,7 +293,7 @@ export default function WiringDrawer({ isOpen, onClose, artifactId, initialUrl, 
                                             <div className="text-center">
                                                 <p className="font-medium text-red-500">Image generation failed</p>
                                                 <p className="text-sm text-muted-foreground mt-1">{errorMessage}</p>
-                                                <p className="text-xs text-muted-foreground mt-2">Check that BYTEZ_API_KEY is configured</p>
+                                                <p className="text-xs text-muted-foreground mt-2">Check that the API keys are configured in your environment</p>
                                             </div>
                                         </div>
                                     )}

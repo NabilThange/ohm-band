@@ -21,7 +21,7 @@ Add to Vercel Dashboard:
 CRON_SECRET=generate_random_32_char_string
 ```
 
-(BYTEZ_API_KEY and SUPABASE keys already exist)
+(LLM_PROVIDER, provider API keys, and SUPABASE keys already exist)
 
 ### STEP 3: WiringDrawer Integration (2 min)
 

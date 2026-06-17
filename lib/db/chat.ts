@@ -23,10 +23,14 @@ export const ChatService = {
 
         if (error) throw error
 
-        // Create a companion session for multi-agent state
+        // Create a companion session for multi-agent state WITH default provider
         const { error: sessionError } = await supabase
             .from('chat_sessions')
-            .insert({ chat_id: chat.id })
+            .insert({ 
+                chat_id: chat.id,
+                selected_provider: 'groq', // Default provider
+                selected_model: 'openai/gpt-oss-120b'  // Default to GPT OSS 120B
+            })
 
         if (sessionError) console.warn('Failed to create chat session:', sessionError)
 
@@ -47,10 +51,14 @@ export const ChatService = {
 
         if (error) throw error
 
-        // Create a companion session for multi-agent state
+        // Create a companion session for multi-agent state WITH default provider
         const { error: sessionError } = await supabase
             .from('chat_sessions')
-            .insert({ chat_id: chat.id })
+            .insert({ 
+                chat_id: chat.id,
+                selected_provider: 'groq', // Default provider
+                selected_model: 'openai/gpt-oss-120b'  // Default to GPT OSS 120B
+            })
 
         if (sessionError) console.warn('Failed to create chat session:', sessionError)
 
