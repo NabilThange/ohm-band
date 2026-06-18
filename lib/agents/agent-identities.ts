@@ -75,6 +75,13 @@ export const AGENT_IDENTITIES: Record<string, AgentIdentity> = {
     role: "Optimizes costs without compromising quality",
     model: "Claude Sonnet 4.5"
   },
+  enclosureGenerator: {
+    name: "Enclosure Designer",
+    avatar: "/avatar/enclosure_designer.svg",
+    icon: "📦",
+    role: "Generates 3D-printable enclosures in OpenSCAD",
+    model: "Claude Opus 4.5"
+  },
   conversationSummarizer: {
     name: "Project Historian",
     avatar: "/avatar/Project_Historian.svg",

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agentation": {
+      "command": "npx",
+      "args": ["agentation-mcp", "server"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

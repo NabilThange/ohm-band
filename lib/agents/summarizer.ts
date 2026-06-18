@@ -260,7 +260,7 @@ export class ConversationSummarizer {
       // Try to insert with created_by, but handle schema mismatch gracefully
       const versionData: any = {
         artifact_id: current.artifactId,
-        version_number: newVersionNumber,
+        version_number: newVersionNumber,  // ponytail: Must include version_number (NOT NULL constraint)
         content: updatedSummary  // Use content_json for structured data
       };
 

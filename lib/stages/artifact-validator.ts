@@ -72,6 +72,7 @@ export const ARTIFACT_DEPENDENCIES: Record<ArtifactKey, ArtifactKey[]> = {
   wiring: ['code'],
   code: [],
   budget: [], // budget is independent; changing it doesn't invalidate others
+  enclosure: [], // Phase 1: No stale cascade yet (manual regenerate only)
 };
 
 /**

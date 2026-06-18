@@ -152,7 +152,7 @@ Reflect any changes made during the chat in these documents.`;
 
                                 {messages.map((m) => (
                                     <div key={m.id} className="space-y-2">
-                                        <Message role={m.role} metadata={{ agent_name: m.agent_name, agentId: m.agent_id, ...m.metadata }}>
+                                        <Message role={m.role} metadata={{ id: m.id, agent_name: m.agent_name, agentId: m.agent_id, ...m.metadata }}>
                                             {m.content}
                                         </Message>
                                     </div>

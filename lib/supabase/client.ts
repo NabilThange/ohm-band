@@ -1,25 +1,32 @@
 import { createClient } from '@supabase/supabase-js'
 import { Database } from './types'
 
-// Client-side singleton
+// Singletons for both client and server
 let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null
+let serverInstance: ReturnType<typeof createClient<Database>> | null = null
+let hasLoggedServerInit = false // ponytail: log once, not per call
 
 export function getSupabaseClient() {
     if (typeof window === 'undefined') {
-        // Server-side: Always create a new client with SERVICE_ROLE_KEY to bypass RLS
-        // This is safe because this code only runs on the server
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.warn('[Supabase] ⚠️ No SERVICE_ROLE_KEY found, using ANON_KEY (RLS will be enforced)');
-        } else {
-            console.log('[Supabase] ✅ Using SERVICE_ROLE_KEY for server-side operations');
+        // Server-side: Use singleton to avoid recreating client on every call
+        if (!serverInstance) {
+            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            
+            if (!hasLoggedServerInit) {
+                if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                    console.warn('[Supabase] ⚠️ No SERVICE_ROLE_KEY found, using ANON_KEY (RLS will be enforced)');
+                } else {
+                    console.log('[Supabase] ✅ Using SERVICE_ROLE_KEY for server-side operations');
+                }
+                hasLoggedServerInit = true
+            }
+            
+            serverInstance = createClient<Database>(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                serviceKey!
+            )
         }
-        
-        return createClient<Database>(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            serviceKey!
-        )
+        return serverInstance
     }
 
     // Client-side: Use singleton with ANON_KEY

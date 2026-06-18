@@ -309,8 +309,13 @@ export class AgentRunner {
             // ponytail: If tool calling failed and we're not already using fallback, retry with reliable models
             const isToolError = error.message?.toLowerCase().includes('function') || 
                                error.message?.toLowerCase().includes('tool');
+            
+            // ponytail: Never trigger provider cascade for validation errors (should be caught in inner loop)
+            const isValidationError = 
+                error.message?.includes('did not match schema') ||
+                error.message?.includes('value must be one of');
                                
-            if (needsTools && isToolError) {
+            if (needsTools && isToolError && !isValidationError) {
                 // Try fallback models in order
                 for (const fallback of fallbackOptions) {
                     if (actualModel === fallback.model) continue; // Skip if already using this model
@@ -376,76 +381,103 @@ export class AgentRunner {
                 }));
             }
 
-            const response = await client.chat.completions.create(requestParams);
-            const message = response.choices[0]?.message;
+            try {
+                const response = await client.chat.completions.create(requestParams);
+                const message = response.choices[0]?.message;
 
-            // Check for tool calls
-            if (message?.tool_calls && message.tool_calls.length > 0) {
-                console.log(`🔧 [AgentLoop] AI called ${message.tool_calls.length} tool(s)`);
+                // Check for tool calls
+                if (message?.tool_calls && message.tool_calls.length > 0) {
+                    console.log(`🔧 [AgentLoop] AI called ${message.tool_calls.length} tool(s)`);
 
-                // Add assistant message with tool calls to history
-                conversationMessages.push({
-                    role: "assistant",
-                    content: message.content || "",
-                    tool_calls: message.tool_calls
-                } as any);
+                    // Add assistant message with tool calls to history
+                    conversationMessages.push({
+                        role: "assistant",
+                        content: message.content || "",
+                        tool_calls: message.tool_calls
+                    } as any);
 
-                // Execute each tool and collect results
-                for (const tc of message.tool_calls) {
-                    if (tc.type === 'function' && 'function' in tc) {
-                        const toolCall: ToolCall = {
-                            name: tc.function.name,
-                            arguments: JSON.parse(tc.function.arguments)
-                        };
-
-                        // Loop detection: same tool + args = abort
-                        const callSig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
-                        if (seenCalls.has(callSig)) {
-                            throw new Error(`Loop detected: repeated call to ${toolCall.name}`);
-                        }
-                        seenCalls.add(callSig);
-
-                        allToolCalls.push(toolCall);
-
-                        // Execute tool
-                        let toolResult: any;
-                        try {
-                            if (onToolCall) {
-                                console.log(`🔧 Executing tool: ${toolCall.name}`);
-                                toolResult = await onToolCall(toolCall);
-                            } else {
-                                toolResult = { success: true };
-                            }
-                        } catch (error: any) {
-                            console.error(`❌ Tool ${toolCall.name} failed:`, error.message);
-                            toolResult = {
-                                success: false,
-                                error: error.message
+                    // Execute each tool and collect results
+                    for (const tc of message.tool_calls) {
+                        if (tc.type === 'function' && 'function' in tc) {
+                            const toolCall: ToolCall = {
+                                name: tc.function.name,
+                                arguments: JSON.parse(tc.function.arguments)
                             };
+
+                            // Loop detection: same tool + args = abort
+                            const callSig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
+                            if (seenCalls.has(callSig)) {
+                                throw new Error(`Loop detected: repeated call to ${toolCall.name}`);
+                            }
+                            seenCalls.add(callSig);
+
+                            allToolCalls.push(toolCall);
+
+                            // Execute tool
+                            let toolResult: any;
+                            try {
+                                if (onToolCall) {
+                                    console.log(`🔧 Executing tool: ${toolCall.name}`);
+                                    toolResult = await onToolCall(toolCall);
+                                } else {
+                                    toolResult = { success: true };
+                                }
+                            } catch (error: any) {
+                                console.error(`❌ Tool ${toolCall.name} failed:`, error.message);
+                                toolResult = {
+                                    success: false,
+                                    error: error.message
+                                };
+                            }
+
+                            // ponytail: Ensure content is never empty (OpenAI requires it)
+                            const resultContent = toolResult !== undefined 
+                                ? JSON.stringify(toolResult)
+                                : JSON.stringify({ success: true });
+
+                            // Add tool result to conversation
+                            conversationMessages.push({
+                                role: "tool",
+                                tool_call_id: tc.id,
+                                content: resultContent
+                            } as any);
                         }
-
-                        // ponytail: Ensure content is never empty (OpenAI requires it)
-                        const resultContent = toolResult !== undefined 
-                            ? JSON.stringify(toolResult)
-                            : JSON.stringify({ success: true });
-
-                        // Add tool result to conversation
-                        conversationMessages.push({
-                            role: "tool",
-                            tool_call_id: tc.id,
-                            content: resultContent
-                        } as any);
                     }
+
+                    // Continue loop - give AI another turn
+                    continue;
                 }
 
-                // Continue loop - give AI another turn
+                // No tool calls - AI provided final response
+                const finalContent = message?.content || "";
+                console.log(`✅ ${agent.name} completed in ${turn + 1} turn(s) (${finalContent.length} chars, ${allToolCalls.length} total tool calls)`);
+                return { response: finalContent, toolCalls: allToolCalls };
+                
+            } catch (apiError: any) {
+                // ponytail: Provider validation errors should trigger self-correction, not provider fallback
+                const isValidationError = 
+                    apiError.message?.includes('did not match schema') ||
+                    apiError.message?.includes('value must be one of');
+                
+                if (!isValidationError) throw apiError; // Real API error, let outer catch handle it
+                
+                console.warn(`⚠️ [AgentLoop] Provider rejected tool call (validation error), converting to correctable tool result`);
+                
+                // Convert provider validation error into a correctable tool result
+                // so the LLM can self-correct on the next turn
+                conversationMessages.push({
+                    role: 'tool',
+                    tool_call_id: 'validation_error', // ponytail: placeholder ID, providers may require actual ID
+                    content: JSON.stringify({
+                        success: false,
+                        error: apiError.message,
+                        hint: 'Your last tool call used an invalid parameter value. Check the schema and retry.'
+                    })
+                } as any);
+                
+                // Loop continues — LLM sees the error and self-corrects
                 continue;
             }
-
-            // No tool calls - AI provided final response
-            const finalContent = message?.content || "";
-            console.log(`✅ ${agent.name} completed in ${turn + 1} turn(s) (${finalContent.length} chars, ${allToolCalls.length} total tool calls)`);
-            return { response: finalContent, toolCalls: allToolCalls };
         }
 
         throw new Error(`Agent loop exceeded max turns (${maxTurns})`);

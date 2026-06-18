@@ -15,18 +15,18 @@ export const DRAWER_TOOLS = {
 
     read: {
         name: "read",
-        description: "Read any project artifact to understand current project state. Use this to check what's been created or decided before making changes. Available artifacts: context, mvp, prd, bom, code, wiring, budget, conversation_summary.",
+        description: "Read any project artifact to understand current project state. Use this to check what's been created or decided before making changes. Available artifacts: context, mvp, prd, bom, code, wiring, budget, enclosure, conversation_summary.",
         parameters: {
             type: "object",
             properties: {
                 artifact_type: {
                     type: "string",
-                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget", "conversation_summary"],
+                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget", "enclosure", "conversation_summary"],
                     description: "Type of artifact to read"
                 },
                 path: {
                     type: "string",
-                    description: "Optional: For code artifacts, specify which file to read (e.g., 'src/main.cpp')"
+                    description: "Optional: For code/enclosure artifacts, specify which file to read (e.g., 'src/main.cpp', 'base.scad')"
                 }
             },
             required: ["artifact_type"]
@@ -41,7 +41,7 @@ export const DRAWER_TOOLS = {
             properties: {
                 artifact_type: {
                     type: "string",
-                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget"],
+                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget", "enclosure"],
                     description: "Type of artifact to write"
                 },
                 content: {
@@ -55,11 +55,11 @@ export const DRAWER_TOOLS = {
                 },
                 path: {
                     type: "string",
-                    description: "For code artifacts: file path (e.g., 'src/main.cpp')"
+                    description: "For code/enclosure artifacts: file path (e.g., 'src/main.cpp', 'base.scad')"
                 },
                 language: {
                     type: "string",
-                    description: "For code artifacts: programming language identifier"
+                    description: "For code/enclosure artifacts: programming language identifier (e.g., 'cpp', 'openscad')"
                 }
             },
             required: ["artifact_type", "content"]
@@ -74,12 +74,12 @@ export const DRAWER_TOOLS = {
             properties: {
                 artifact_type: {
                     type: "string",
-                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget"],
+                    enum: ["context", "mvp", "prd", "bom", "code", "wiring", "budget", "enclosure"],
                     description: "Type of artifact to delete"
                 },
                 path: {
                     type: "string",
-                    description: "Optional: For code artifacts, specify which file to delete (e.g., 'src/main.cpp')"
+                    description: "Optional: For code/enclosure artifacts, specify which file to delete (e.g., 'src/main.cpp', 'base.scad')"
                 }
             },
             required: ["artifact_type"]
@@ -94,7 +94,7 @@ export const DRAWER_TOOLS = {
             properties: {
                 drawer: {
                     type: "string",
-                    enum: ["context", "bom", "code", "wiring", "budget"],
+                    enum: ["context", "bom", "code", "wiring", "budget", "enclosure"],
                     description: "Which drawer to open"
                 }
             },
@@ -202,6 +202,7 @@ export function getToolsForAgent(agentType: string): any[] {
         codeGenerator: ['read', 'write', 'open_drawer'],
         wiringDiagram: ['read', 'write', 'open_drawer'],
         budgetOptimizer: ['read', 'write', 'open_drawer'],
+        enclosureGenerator: ['read', 'write', 'open_drawer'],
         conversationSummarizer: ['read'],
         // Agents that don't use tools
         orchestrator: [],

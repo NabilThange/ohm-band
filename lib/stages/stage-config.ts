@@ -13,7 +13,8 @@ export type ArtifactKey =
   | 'bom'
   | 'budget'
   | 'wiring'
-  | 'code';
+  | 'code'
+  | 'enclosure';
 
 export interface StageConfig {
   /** Short description shown in the progress bar */
@@ -74,15 +75,15 @@ export const STAGE_CONFIG: Record<ProjectStage, StageConfig> = {
     description: 'Get connection instructions and working firmware',
     goal: 'Generate wiring diagrams and firmware code',
     requiredArtifacts: ['wiring', 'code'],
-    eligibleAgents: ['wiringDiagram', 'codeGenerator'],
+    eligibleAgents: ['wiringDiagram', 'codeGenerator', 'enclosureGenerator'],
     nextStage: 'fix',
   },
 
   fix: {
-    description: 'Troubleshoot and verify your build',
-    goal: 'Debug hardware and software issues',
+    description: 'Troubleshoot, verify, and enhance your build',
+    goal: 'Debug hardware/software issues and optionally generate enclosures',
     requiredArtifacts: [], // terminal — no gate
-    eligibleAgents: ['debugger', 'circuitVerifier'],
+    eligibleAgents: ['debugger', 'circuitVerifier', 'enclosureGenerator'],
     nextStage: null,
   },
 };

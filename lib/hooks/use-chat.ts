@@ -13,6 +13,7 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [forceAgent, setForceAgent] = useState<string | null>(null)
+    const [activeTempMessageId, setActiveTempMessageId] = useState<string | null>(null) // ponytail: Track temp AI message ID
 
     // Load initial history
     const loadMessages = useCallback(async () => {
@@ -72,16 +73,39 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                             return prev
                         }
                         
-                        // NEW: If this is an assistant message, check if we have a temp message to replace
+                        // ponytail: Replace optimistic user message with real DB message
+                        if (newMsg.role === 'user') {
+                            console.log('[useChat] 🔄 User message from DB, checking for optimistic duplicate...');
+                            // Find optimistic user message with same content (ponytail: sequence_number is temp, use content)
+                            const hasOptimisticUser = prev.some(m => 
+                                m.role === 'user' && 
+                                m.content === newMsg.content && 
+                                m.id !== newMsg.id // Different IDs (temp vs real)
+                            );
+                            
+                            if (hasOptimisticUser) {
+                                console.log('[useChat] ✅ Replacing optimistic user message with real message from DB');
+                                // Remove optimistic, add real
+                                return prev
+                                    .filter(m => !(m.role === 'user' && m.content === newMsg.content && m.id !== newMsg.id))
+                                    .concat([newMsg])
+                                    .sort((a, b) => a.sequence_number - b.sequence_number);
+                            }
+                        }
+                        
+                        // If this is an assistant message, check if we have a temp message to replace
                         if (newMsg.role === 'assistant') {
                             console.log('[useChat] 🔄 Checking if we need to replace temp message...');
-                            const hasTempMessage = prev.some(m => m.agent_name === 'thinking...');
+                            // ponytail: Check using tracked temp ID instead of agent_name (which changes during streaming)
+                            const hasTempMessage = activeTempMessageId && prev.some(m => m.id === activeTempMessageId);
                             
                             if (hasTempMessage) {
-                                console.log('[useChat] ✅ Replacing temp message with real message from DB');
+                                console.log('[useChat] ✅ Replacing temp message with real message from DB (ID:', activeTempMessageId, ')');
+                                // Clear the active temp ID since we're replacing it
+                                setActiveTempMessageId(null);
                                 // Replace the temp message with the real one
                                 return prev
-                                    .filter(m => m.agent_name !== 'thinking...')  // Remove temp
+                                    .filter(m => m.id !== activeTempMessageId)  // Remove temp by ID
                                     .concat([newMsg])  // Add real
                                     .sort((a, b) => a.sequence_number - b.sequence_number);
                             }
@@ -168,6 +192,9 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
             let agentInfo: any = null;
             let accumulatedToolCalls: any[] = [];  // NEW: Accumulate tool calls
             let realMessageId: string | null = null;  // NEW: Track real message ID from DB
+
+            // ponytail: Track this temp ID so realtime subscription can replace it
+            setActiveTempMessageId(aiTempId);
 
             // Add an empty AI message initially
             setMessages(prev => [
@@ -449,8 +476,10 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
             setError(err.message)
             // Remove optimistic message on error
             setMessages(prev => prev.filter(m => m.id !== tempId))
+            // ponytail: Clear temp AI message ID if stream failed
+            setActiveTempMessageId(null)
         }
-    }, [chatId, forceAgent, onAgentChange])
+    }, [chatId, forceAgent, onAgentChange, activeTempMessageId])
 
     return { messages, session, isLoading, error, sendMessage, setForceAgent, refreshMessages: loadMessages }
 }

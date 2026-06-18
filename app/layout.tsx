@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import '@/components/toast.css'
 import { ToastProvider } from '@/components/ToastProvider'
+import { Agentation } from 'agentation'
 
 export const metadata: Metadata = {
   title: 'Ohm - Hardware Lifecycle Orchestrator',
@@ -37,6 +38,10 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background text-foreground" suppressHydrationWarning>
         {children}
         <ToastProvider />
+        <Agentation 
+          endpoint="http://localhost:4747"
+          copyToClipboard={true}
+        />
       </body>
     </html>
   )

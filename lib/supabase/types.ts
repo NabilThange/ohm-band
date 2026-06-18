@@ -401,7 +401,7 @@ export type Database = {
                     id: string
                     chat_id: string | null
                     project_id: string | null
-                    type: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary'
+                    type: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary' | 'enclosure'
                     title: string
                     current_version: number | null
                     metadata: Json
@@ -412,7 +412,7 @@ export type Database = {
                     id?: string
                     chat_id?: string | null
                     project_id?: string | null
-                    type: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary'
+                    type: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary' | 'enclosure'
                     title: string
                     current_version?: number | null
                     metadata?: Json
@@ -423,7 +423,7 @@ export type Database = {
                     id?: string
                     chat_id?: string | null
                     project_id?: string | null
-                    type?: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary'
+                    type?: 'context' | 'mvp' | 'prd' | 'bom' | 'code' | 'wiring' | 'circuit' | 'budget' | 'conversation_summary' | 'enclosure'
                     title?: string
                     current_version?: number | null
                     metadata?: Json

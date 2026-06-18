@@ -25,6 +25,9 @@ export interface ParsedResponse {
  * Supports: <QUESTIONS>...</QUESTIONS>, raw JSON at end, or JSON anywhere
  */
 export function parseQuestions(response: string): ParsedResponse {
+  // ponytail: Strip question tags first to prevent them from reaching React
+  let cleanedText = response;
+  
   // Pattern 1: <QUESTIONS>...</QUESTIONS> tags (ponytail: uppercase tags preferred)
   const tagPattern = /<QUESTIONS>\s*([\s\S]*?)\s*<\/QUESTIONS>/i;
   const tagMatch = response.match(tagPattern);
@@ -44,11 +47,13 @@ export function parseQuestions(response: string): ParsedResponse {
     } catch (e) {
       console.warn('[QuestionParser] Failed to parse tagged JSON:', e);
     }
+    // ponytail: Even if parse failed, strip the tags to prevent React errors
+    cleanedText = response.replace(tagPattern, '').trim();
   }
   
   // Pattern 2: Raw JSON at end
   const trailingJsonPattern = /\n\s*(\{[\s\S]*"questions"[\s\S]*\})\s*$/;
-  const trailingMatch = response.match(trailingJsonPattern);
+  const trailingMatch = cleanedText.match(trailingJsonPattern);
   
   if (trailingMatch) {
     try {
@@ -56,7 +61,7 @@ export function parseQuestions(response: string): ParsedResponse {
       
       if (validateQuestions(questions)) {
         return {
-          text: response.replace(trailingJsonPattern, '').trim(),
+          text: cleanedText.replace(trailingJsonPattern, '').trim(),
           questions,
           hasQuestions: true
         };
@@ -68,7 +73,7 @@ export function parseQuestions(response: string): ParsedResponse {
   
   // Pattern 3: JSON anywhere (ponytail: catches AI that forgets wrapping)
   const anyJsonPattern = /\{[\s\S]*?"questions"\s*:\s*\[[\s\S]*?\]\s*\}/;
-  const anyMatch = response.match(anyJsonPattern);
+  const anyMatch = cleanedText.match(anyJsonPattern);
   
   if (anyMatch) {
     try {
@@ -76,7 +81,7 @@ export function parseQuestions(response: string): ParsedResponse {
       
       if (validateQuestions(questions)) {
         return {
-          text: response.replace(anyMatch[0], '').trim(),
+          text: cleanedText.replace(anyMatch[0], '').trim(),
           questions,
           hasQuestions: true
         };
@@ -87,7 +92,7 @@ export function parseQuestions(response: string): ParsedResponse {
   }
   
   return {
-    text: response,
+    text: cleanedText,
     questions: null,
     hasQuestions: false
   };

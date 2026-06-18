@@ -45,11 +45,11 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
           "group-data-[from=assistant]:max-w-[725px]",
           variant === "contained" && [
             "shadow-sm",
-            "group-data-[from=user]:bg-[#EEEEEE] group-data-[from=user]:text-gray-900",
+            "group-data-[from=user]:bg-accent group-data-[from=user]:text-foreground",
             "group-data-[from=assistant]:bg-[#272626] group-data-[from=assistant]:text-white",
           ],
           variant === "flat" && [
-            "group-data-[from=user]:bg-[#EEEEEE] group-data-[from=user]:text-gray-900 group-data-[from=user]:shadow-sm",
+            "group-data-[from=user]:bg-accent group-data-[from=user]:text-foreground group-data-[from=user]:shadow-sm",
             "group-data-[from=assistant]:bg-[#272626] group-data-[from=assistant]:text-white",
           ],
           className

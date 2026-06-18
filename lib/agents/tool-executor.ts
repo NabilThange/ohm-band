@@ -38,7 +38,8 @@ export class ToolExecutor {
                 'bom': 'bom',
                 'code': 'code',
                 'wiring': 'wiring',
-                'budget': 'budget'
+                'budget': 'budget',
+                'enclosure': 'enclosure'
             };
 
             const dbType = typeMap[artifactType];
@@ -117,6 +118,15 @@ export class ToolExecutor {
                 });
             }
 
+            // Handle enclosure files (same pattern as code)
+            if (artifact_type === 'enclosure' && path) {
+                return await this.addEnclosureFile({
+                    filename: path,
+                    language: language || 'openscad',
+                    content: typeof content === 'string' ? content : JSON.stringify(content, null, 2)
+                });
+            }
+
             // Route to specialized handlers for backward compatibility
             switch (artifact_type) {
                 case 'context':
@@ -131,6 +141,9 @@ export class ToolExecutor {
                     return await this.updateWiring(content);
                 case 'budget':
                     return await this.updateBudget(content);
+                case 'enclosure':
+                    // ponytail: enclosure without path handled above, this shouldn't be reached
+                    throw new Error('Enclosure artifacts require a path parameter');
                 default:
                     throw new Error(`Unsupported artifact type: ${artifact_type}`);
             }
@@ -156,7 +169,8 @@ export class ToolExecutor {
                 'bom': 'bom',
                 'code': 'code',
                 'wiring': 'wiring',
-                'budget': 'budget'
+                'budget': 'budget',
+                'enclosure': 'enclosure'
             };
 
             const dbType = typeMap[artifactType];
@@ -351,69 +365,144 @@ export class ToolExecutor {
     /**
      * Update project context artifact
      */
-    private async updateContext(context: string) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('context', 'Project Context');
+    private async updateContext(context: string, retryCount = 0, maxRetries = 3): Promise<any> {
+        try {
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('context', 'Project Context');
 
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content: context,
-            change_summary: "Updated via tool call"
-        });
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content: context,
+                change_summary: "Updated via tool call"
+            });
 
-        console.log(`✅ [ToolExecutor] Context updated (version ${version.version_number})`);
-        return { success: true, artifact_id: artifactId, version: version.version_number };
+            console.log(`✅ [ToolExecutor] Context updated (version ${version.version_number})`);
+            return { success: true, artifact_id: artifactId, version: version.version_number };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for context, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updateContext(context, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update context:`, error.message);
+            throw error;
+        }
     }
 
     /**
      * Update MVP specification artifact
      */
-    private async updateMVP(mvp: string) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('mvp', 'MVP Specification');
+    private async updateMVP(mvp: string, retryCount = 0, maxRetries = 3): Promise<any> {
+        try {
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('mvp', 'MVP Specification');
 
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content: mvp,
-            change_summary: "Updated via tool call"
-        });
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content: mvp,
+                change_summary: "Updated via tool call"
+            });
 
-        console.log(`✅ [ToolExecutor] MVP updated (version ${version.version_number})`);
-        return { success: true, artifact_id: artifactId, version: version.version_number };
+            console.log(`✅ [ToolExecutor] MVP updated (version ${version.version_number})`);
+            return { success: true, artifact_id: artifactId, version: version.version_number };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for MVP, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updateMVP(mvp, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update MVP:`, error.message);
+            throw error;
+        }
     }
 
     /**
      * Update PRD artifact
      */
-    private async updatePRD(prd: string) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('prd', 'Product Requirements');
+    private async updatePRD(prd: string, retryCount = 0, maxRetries = 3): Promise<any> {
+        try {
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('prd', 'Product Requirements');
 
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content: prd,
-            change_summary: "Updated via tool call"
-        });
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content: prd,
+                change_summary: "Updated via tool call"
+            });
 
-        console.log(`✅ [ToolExecutor] PRD updated (version ${version.version_number})`);
-        return { success: true, artifact_id: artifactId, version: version.version_number };
+            console.log(`✅ [ToolExecutor] PRD updated (version ${version.version_number})`);
+            return { success: true, artifact_id: artifactId, version: version.version_number };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for PRD, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updatePRD(prd, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update PRD:`, error.message);
+            throw error;
+        }
     }
 
     /**
      * Update BOM artifact with structured JSON data
      */
-    private async updateBOM(bomData: any) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('bom', bomData.project_name || 'Bill of Materials');
+    private async updateBOM(bomData: any, retryCount = 0, maxRetries = 3): Promise<any> {
+        try {
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('bom', bomData.project_name || 'Bill of Materials');
 
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content_json: bomData,
-            change_summary: "Updated via tool call"
-        });
+            // ponytail: Calculate totalCost if missing (agent might forget or use different field name)
+            if (!bomData.totalCost && bomData.components) {
+                bomData.totalCost = bomData.components.reduce((sum: number, c: any) => 
+                    sum + (Number(c.estimatedCost || 0) * Number(c.quantity || 1)), 0
+                );
+            }
 
-        console.log(`✅ [ToolExecutor] BOM updated: ${bomData.components?.length || 0} components, $${bomData.totalCost}`);
-        return { success: true, artifact_id: artifactId, version: version.version_number };
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content_json: bomData,
+                change_summary: "Updated via tool call"
+            });
+
+            console.log(`✅ [ToolExecutor] BOM updated: ${bomData.components?.length || 0} components, $${(bomData.totalCost || 0).toFixed(2)}`);
+            return { success: true, artifact_id: artifactId, version: version.version_number };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for BOM, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updateBOM(bomData, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update BOM:`, error.message);
+            throw error;
+        }
     }
 
     /**
@@ -484,126 +573,210 @@ export class ToolExecutor {
     }
 
     /**
-     * Update wiring diagram artifact with visual generation
-     * Generates SVG schematic (sync) and triggers AI breadboard image (async)
+     * Add or update a file in the enclosure artifact
+     * Multiple files are accumulated in the same artifact's content_json.files array
+     * Includes retry logic to handle version conflicts when multiple files are added concurrently
      */
-    private async updateWiring(wiringData: { connections: any[]; instructions: string; warnings?: string[]; components?: any[] }) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('wiring', 'Wiring Diagram');
-
-        // Step 1: Save wiring JSON to artifact (IMMEDIATE)
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content_json: wiringData,
-            content: wiringData.instructions, // Store markdown instructions in content field
-            change_summary: "Updated wiring connections"
-        });
-
-        console.log(`✅ [ToolExecutor] Wiring updated: ${wiringData.connections?.length || 0} connections`);
-
-        // NEW: Queue AI Diagram Generation
+    private async addEnclosureFile(
+        fileData: { filename: string; language: string; content: string; description?: string },
+        retryCount = 0,
+        maxRetries = 3
+    ): Promise<{ success: boolean; artifact_id: string; version: number; file_count: number }> {
         try {
-            const circuitJson = {
-                components: wiringData.components || [],
-                connections: wiringData.connections || []
+            const { id: artifactId, currentVersion, existingVersion } = await this.getOrCreateArtifact('enclosure', '3D Enclosure');
+
+            // Get existing files from the latest version
+            const contentJson = existingVersion?.content_json as { files?: any[] } | null;
+            const existingFiles = contentJson?.files || [];
+
+            // Add or update the file
+            const fileIndex = existingFiles.findIndex((f: any) => f.path === fileData.filename);
+            const newFile = {
+                path: fileData.filename,
+                language: fileData.language,
+                content: fileData.content,
+                description: fileData.description || ''
             };
 
-            console.log(`🔌 [ToolExecutor] Queueing diagram generation for artifact version ${version.id}`);
+            if (fileIndex >= 0) {
+                existingFiles[fileIndex] = newFile;
+                console.log(`[ToolExecutor] Updating existing enclosure file: ${fileData.filename}`);
+            } else {
+                existingFiles.push(newFile);
+                console.log(`[ToolExecutor] Adding new enclosure file: ${fileData.filename} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+            }
 
-            // Update status on the artifact version we just created
-            await supabase.from('artifact_versions')
-                .update({
-                    diagram_status: 'queued',
-                    updated_at: new Date().toISOString()
-                } as any)
-                .eq('id', version.id);
-
-            // Add to queue using the correct artifact_versions.id (not artifacts.id)
-            const { error: queueError } = await (supabase.from('diagram_queue' as any)).insert({
-                circuit_json: circuitJson,
-                artifact_id: version.id, // ✅ FIXED: Use version.id (artifact_versions.id) instead of artifactId (artifacts.id)
-                chat_id: this.chatId,
-                status: 'queued'
+            // Create new version with updated file list
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content_json: { files: existingFiles },
+                change_summary: `${fileIndex >= 0 ? 'Updated' : 'Added'} ${fileData.filename}`
             });
 
-            if (queueError) {
-                console.error('[ToolExecutor] Failed to queue diagram:', queueError);
-                console.error('[ToolExecutor] Queue error details:', queueError);
-            } else {
-                console.log('[ToolExecutor] Diagram generation queued successfully');
+            console.log(`✅ [ToolExecutor] Enclosure file processed: ${fileData.filename} (${existingFiles.length} total files, version ${version.version_number})`);
+            return { success: true, artifact_id: artifactId, version: version.version_number, file_count: existingFiles.length };
+
+        } catch (error: any) {
+            // Check if it's a duplicate version error
+            const isDuplicateVersion = error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`[ToolExecutor] ⚠️ Version conflict for ${fileData.filename}, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+
+                // Wait a bit before retrying (exponential backoff)
+                const delayMs = Math.pow(2, retryCount) * 100; // 100ms, 200ms, 400ms
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+
+                // Retry with fresh version number
+                return this.addEnclosureFile(fileData, retryCount + 1, maxRetries);
             }
-        } catch (err) {
-            console.error('[ToolExecutor] Error queueing diagram:', err);
+
+            // If not a version conflict or max retries exceeded, throw the error
+            console.error(`❌ [ToolExecutor] Failed to add enclosure file ${fileData.filename}:`, error.message);
+            throw error;
         }
+    }
 
-        // Step 2: Generate visual diagrams (SVG sync + AI async)
+    /**
+     * Update wiring diagram artifact with visual generation
+     * Generates SVG schematic (sync) and triggers AI breadboard image (async)
+     * ponytail: Single version creation to avoid race conditions
+     */
+    private async updateWiring(wiringData: { connections: any[]; instructions: string; warnings?: string[]; components?: any[] }, retryCount = 0, maxRetries = 3): Promise<any> {
         try {
-            const { VisualWiringPipeline } = await import('@/lib/diagram/visual-wiring-pipeline');
-            const pipeline = new VisualWiringPipeline();
+            // ponytail: Re-fetch version on each retry to avoid stale reads
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('wiring', 'Wiring Diagram');
 
-            // Generate SVG synchronously (fast, ~500ms)
-            console.log('[ToolExecutor] Generating SVG schematic...');
-            const svg = await pipeline.generateSVG(wiringData);
+            // Generate SVG first (before creating version)
+            let svg: string | undefined;
+            try {
+                const { VisualWiringPipeline } = await import('@/lib/diagram/visual-wiring-pipeline');
+                const pipeline = new VisualWiringPipeline();
+                console.log('[ToolExecutor] Generating SVG schematic...');
+                svg = await pipeline.generateSVG(wiringData);
+                console.log('[ToolExecutor] ✅ SVG schematic generated');
+            } catch (error: any) {
+                console.error('[ToolExecutor] ⚠️ SVG generation failed:', error.message);
+                // Continue without SVG
+            }
 
-            // Re-fetch artifact to get latest version number (avoid race condition)
-            const refreshed = await ArtifactService.getLatestArtifact(this.chatId, 'wiring');
-            const latestVersion = refreshed?.artifact?.current_version || currentVersion + 1;
-
-            // Update artifact with SVG immediately
-            await ArtifactService.createVersion({
+            // Create single version with all data (wiring + SVG)
+            const version = await ArtifactService.createVersion({
                 artifact_id: artifactId,
-                version_number: latestVersion + 1,
+                version_number: currentVersion + 1,
                 content_json: wiringData,
                 content: wiringData.instructions,
                 diagram_svg: svg,
-                change_summary: 'Added SVG schematic'
+                change_summary: svg ? "Updated wiring with SVG schematic" : "Updated wiring connections"
             });
 
-            console.log('[ToolExecutor] ✅ SVG schematic generated and saved');
+            console.log(`✅ [ToolExecutor] Wiring updated: ${wiringData.connections?.length || 0} connections (version ${version.version_number})`);
 
-            // Trigger async AI image generation (don't await - runs in background)
-            if (pipeline.isAIGenerationAvailable()) {
-                console.log('[ToolExecutor] Starting background AI image generation...');
-                pipeline.generateAIImages(this.chatId, artifactId, wiringData)
-                    .then(() => {
-                        console.log('[ToolExecutor] ✅ Background AI image generation completed');
-                    })
-                    .catch(err => {
-                        console.error('[ToolExecutor] ❌ Background AI image generation failed:', err.message);
-                    });
-            } else {
-                console.log('[ToolExecutor] ⚠️  AI image generation not available (active provider doesn\'t support it)');
+            // Queue AI Diagram Generation (non-blocking)
+            try {
+                const circuitJson = {
+                    components: wiringData.components || [],
+                    connections: wiringData.connections || []
+                };
+
+                console.log(`🔌 [ToolExecutor] Queueing diagram generation for artifact version ${version.id}`);
+
+                await supabase.from('artifact_versions')
+                    .update({
+                        diagram_status: 'queued',
+                        updated_at: new Date().toISOString()
+                    } as any)
+                    .eq('id', version.id);
+
+                const { error: queueError } = await (supabase.from('diagram_queue' as any)).insert({
+                    circuit_json: circuitJson,
+                    artifact_id: version.id,
+                    chat_id: this.chatId,
+                    status: 'queued'
+                });
+
+                if (queueError) {
+                    console.error('[ToolExecutor] Failed to queue diagram:', queueError);
+                } else {
+                    console.log('[ToolExecutor] Diagram generation queued successfully');
+                }
+            } catch (err) {
+                console.error('[ToolExecutor] Error queueing diagram:', err);
             }
 
-        } catch (error: any) {
-            console.error('[ToolExecutor] ❌ Error in visual wiring pipeline:', error.message);
-            // Don't fail the whole tool call if visual generation fails
-            // User still gets the wiring table and instructions
-        }
+            // Trigger async AI image generation (non-blocking, background)
+            try {
+                const { VisualWiringPipeline } = await import('@/lib/diagram/visual-wiring-pipeline');
+                const pipeline = new VisualWiringPipeline();
+                
+                if (pipeline.isAIGenerationAvailable()) {
+                    console.log('[ToolExecutor] Starting background AI image generation...');
+                    pipeline.generateAIImages(this.chatId, artifactId, wiringData)
+                        .then(() => console.log('[ToolExecutor] ✅ Background AI image generation completed'))
+                        .catch(err => console.error('[ToolExecutor] ❌ Background AI image generation failed:', err.message));
+                }
+            } catch (err) {
+                console.error('[ToolExecutor] Error starting AI generation:', err);
+            }
 
-        return {
-            success: true,
-            artifact_id: artifactId,
-            version: version.version_number,
-            message: 'Wiring diagram updated successfully. Visual diagrams are being generated.'
-        };
+            return {
+                success: true,
+                artifact_id: artifactId,
+                version: version.version_number,
+                message: 'Wiring diagram updated successfully. Visual diagrams are being generated.'
+            };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for wiring, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updateWiring(wiringData, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update wiring:`, error.message);
+            throw error;
+        }
     }
 
     /**
      * Update budget optimization artifact
      */
-    private async updateBudget(budgetData: { originalCost: number; optimizedCost: number; savings?: string; recommendations: any[]; bulkOpportunities?: string[]; qualityWarnings?: string[] }) {
-        const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('budget', 'Budget Optimization');
+    private async updateBudget(budgetData: { originalCost: number; optimizedCost: number; savings?: string; recommendations: any[]; bulkOpportunities?: string[]; qualityWarnings?: string[] }, retryCount = 0, maxRetries = 3): Promise<any> {
+        try {
+            const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('budget', 'Budget Optimization');
 
-        const version = await ArtifactService.createVersion({
-            artifact_id: artifactId,
-            version_number: currentVersion + 1,
-            content_json: budgetData,
-            change_summary: "Updated via tool call"
-        });
+            const version = await ArtifactService.createVersion({
+                artifact_id: artifactId,
+                version_number: currentVersion + 1,
+                content_json: budgetData,
+                change_summary: "Updated via tool call"
+            });
 
-        const savings = budgetData.originalCost - budgetData.optimizedCost;
-        console.log(`✅ [ToolExecutor] Budget updated: $${budgetData.originalCost} → $${budgetData.optimizedCost} (save $${savings.toFixed(2)})`);
-        return { success: true, artifact_id: artifactId, version: version.version_number };
+            const savings = budgetData.originalCost - budgetData.optimizedCost;
+            console.log(`✅ [ToolExecutor] Budget updated: $${budgetData.originalCost} → $${budgetData.optimizedCost} (save $${savings.toFixed(2)})`);
+            return { success: true, artifact_id: artifactId, version: version.version_number };
+            
+        } catch (error: any) {
+            const isDuplicateVersion = 
+                error.message?.includes('duplicate key value') &&
+                error.message?.includes('artifact_versions_artifact_id_version_number_key');
+            
+            if (isDuplicateVersion && retryCount < maxRetries) {
+                console.warn(`⚠️ [ToolExecutor] Version conflict for budget, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                const delayMs = Math.pow(2, retryCount) * 100;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                return this.updateBudget(budgetData, retryCount + 1, maxRetries);
+            }
+            
+            console.error(`❌ [ToolExecutor] Failed to update budget:`, error.message);
+            throw error;
+        }
     }
 }

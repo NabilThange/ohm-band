@@ -304,6 +304,8 @@ export default function Message({ role, children, metadata }) {
                                     {hasQuestions && questions && (
                                         <QuestionComponent
                                             questions={questions.questions}
+                                            messageId={metadata?.id}
+                                            initialAnswers={metadata?.answers || null}
                                             onSubmit={(answers) => {
                                                 // Format answers and send as new message
                                                 const formattedAnswers = formatAnswersForAgent(

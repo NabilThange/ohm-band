@@ -17,6 +17,7 @@ import {
     Cable,
     Code2,
     FileStack,
+    Box,
 } from "lucide-react"
 import BudgetDrawer from "../tools/BudgetDrawer"
 import ComponentDrawer from "../tools/ComponentDrawer"
@@ -24,6 +25,7 @@ import BOMDrawer from "../tools/BOMDrawer"
 import WiringDrawer from "../tools/WiringDrawer"
 import CodeDrawer from "../tools/CodeDrawer"
 import ContextDrawer from "../tools/ContextDrawer"
+import EnclosureDrawer from "../tools/EnclosureDrawer"
 import SidebarSection from "./SidebarSection"
 import ConversationRow from "./ConversationRow"
 import FolderRow from "./FolderRow"
@@ -76,6 +78,12 @@ export default function Sidebar({
     const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false)
     const [editingTemplate, setEditingTemplate] = useState(null)
     const [showSearchModal, setShowSearchModal] = useState(false)
+    const [isMounted, setIsMounted] = useState(false)
+
+    // Prevent hydration mismatch by deferring animation until after mount
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
 
     // Ensure drawers are closed by default, but listen for global open events
     useEffect(() => {
@@ -170,17 +178,18 @@ export default function Sidebar({
     if (sidebarCollapsed) {
         return (
             <>
-                <motion.aside
-                    initial={{ width: 320 }}
-                    animate={{ width: 64 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                    className="z-50 flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
-                >
-                    <div className="flex items-center justify-center px-3 py-3">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => setSidebarCollapsed(false)}
+                {isMounted ? (
+                    <motion.aside
+                        initial={{ width: 320 }}
+                        animate={{ width: 64 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 28 }}
+                        className="z-50 flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
+                    >
+                        <div className="flex items-center justify-center px-3 py-3">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setSidebarCollapsed(false)}
                                     className="rounded-xl p-2 hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     aria-label="Open sidebar"
                                 >
@@ -260,6 +269,7 @@ export default function Sidebar({
                             { id: 'bom', icon: ScrollText, label: 'BOM' },
                             { id: 'wiring', icon: Cable, label: 'Wiring' },
                             { id: 'code', icon: Code2, label: 'Code' },
+                            { id: 'enclosure', icon: Box, label: 'Enclosure' },
                             { id: 'context', icon: FileStack, label: 'Context' },
                         ].map((tool) => (
                             <Tooltip key={tool.id}>
@@ -301,6 +311,11 @@ export default function Sidebar({
                         </SettingsPopover>
                     </div>
                 </motion.aside>
+                ) : (
+                    <aside className="z-50 flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar" style={{ width: '64px' }}>
+                        {/* Placeholder for SSR - prevents hydration mismatch */}
+                    </aside>
+                )}
 
                 <SearchModal
                     isOpen={showSearchModal}
@@ -328,6 +343,7 @@ export default function Sidebar({
                     />
                 )}
                 {activeTool === 'code' && <CodeDrawer isOpen={true} onClose={() => setActiveTool(null)} codeData={codeData} />}
+                {activeTool === 'enclosure' && <EnclosureDrawer isOpen={true} onClose={() => setActiveTool(null)} enclosureData={artifacts?.enclosure?.version?.content_json} />}
                 {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData} />}
             </>
         )
@@ -349,7 +365,7 @@ export default function Sidebar({
             </AnimatePresence>
 
             <AnimatePresence>
-                {(open || typeof window !== "undefined") && (
+                {isMounted && (open || typeof window !== "undefined") && (
                     <motion.aside
                         key="sidebar"
                         initial={{ x: -340 }}
@@ -433,6 +449,7 @@ export default function Sidebar({
                                         { id: 'bom', icon: ScrollText, label: 'BOM' },
                                         { id: 'wiring', icon: Cable, label: 'Wiring' },
                                         { id: 'code', icon: Code2, label: 'Code' },
+                                        { id: 'enclosure', icon: Box, label: 'Enclosure' },
                                         { id: 'context', icon: FileStack, label: 'Context' },
                                     ].map((tool) => (
                                         <Tooltip key={tool.id}>
@@ -633,6 +650,8 @@ export default function Sidebar({
                 />
             )}
             {activeTool === 'code' && <CodeDrawer isOpen={true} onClose={() => setActiveTool(null)} codeData={artifacts?.code?.version?.content_json || codeData} />}
+            {activeTool === 'enclosure' && <EnclosureDrawer isOpen={true} onClose={() => setActiveTool(null)} enclosureData={artifacts?.enclosure?.version?.content_json} />}
+            {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData || { context: artifacts?.context?.version?.content, mvp: artifacts?.mvp?.version?.content, prd: artifacts?.prd?.version?.content }} />}
             {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData || { context: artifacts?.context?.version?.content, mvp: artifacts?.mvp?.version?.content, prd: artifacts?.prd?.version?.content }} />}
         </>
     )

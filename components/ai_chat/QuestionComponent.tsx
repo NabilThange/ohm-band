@@ -18,12 +18,15 @@ interface QuestionComponentProps {
   questions: Question[];
   onSubmit: (answers: Record<string, { idx: number; text: string }>) => void;
   isSubmitting?: boolean;
+  initialAnswers?: Record<string, { idx: number; text: string }> | null;
+  messageId?: string;
 }
 
-export function QuestionComponent({ questions, onSubmit, isSubmitting = false }: QuestionComponentProps) {
+export function QuestionComponent({ questions, onSubmit, isSubmitting = false, initialAnswers = null, messageId }: QuestionComponentProps) {
+  // ponytail: If initialAnswers provided, start in read-only submitted state
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, { idx: number; text: string }>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, { idx: number; text: string }>>(initialAnswers || {});
+  const [submitted, setSubmitted] = useState(!!initialAnswers);
 
   const q = questions[current];
   const isLast = current === questions.length - 1;
@@ -41,10 +44,24 @@ export function QuestionComponent({ questions, onSubmit, isSubmitting = false }:
     setAnswers((prev) => ({ ...prev, [q.id]: { idx, text } }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isAnswered(q.id)) return;
     if (isLast) {
       setSubmitted(true);
+      
+      // ponytail: Save answers to message metadata
+      if (messageId) {
+        try {
+          await fetch(`/api/messages/${messageId}/answers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answers })
+          });
+        } catch (error) {
+          console.error('Failed to save answers:', error);
+        }
+      }
+      
       onSubmit(answers);
     } else {
       setCurrent((c) => c + 1);
@@ -60,7 +77,7 @@ export function QuestionComponent({ questions, onSubmit, isSubmitting = false }:
       <div className="overflow-hidden rounded-xl border border-border bg-card p-6 my-4 animate-in fade-in">
         <div className="flex items-center gap-3 mb-4">
           <CheckCircle2 className="h-6 w-6 text-green-500" />
-          <h3 className="font-semibold text-lg">Answers Submitted</h3>
+          <h3 className="font-semibold text-lg">{initialAnswers ? "Your Answers" : "Answers Submitted"}</h3>
         </div>
         <div className="space-y-3">
           {questions.map((question) => {
