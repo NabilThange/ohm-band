@@ -38,9 +38,9 @@ export async function POST(
       );
     }
 
-    // ponytail: Merge answers into metadata
+    // ponytail: Merge answers into metadata, handle null case
     const updatedMetadata = {
-      ...message.metadata,
+      ...(typeof message.metadata === 'object' && message.metadata !== null ? message.metadata : {}),
       answers,
       answeredAt: new Date().toISOString()
     };
