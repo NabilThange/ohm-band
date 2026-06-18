@@ -770,7 +770,7 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
     const selectedChat = conversations.find((c) => c.id === selectedId) || null
 
     return (
-        <div className="relative h-screen w-full bg-background text-foreground flex overflow-hidden"> {/* Added relative for absolute/sticky children */}
+        <div className="relative h-screen w-full bg-background text-foreground flex"> {/* ponytail: removed overflow-hidden to allow scrolling */}
 
             {/* Artifact Drawers - Absolute positioned or side-by-side? 
                 Let's make them sit on the right side if open, shrinking ChatPane? 
