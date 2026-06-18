@@ -50,7 +50,7 @@ export const ArtifactService = {
         // 1. Find the artifact
         const { data: artifact } = await supabase
             .from('artifacts')
-            .select('id, title, current_version')
+            .select('id, title, current_version, metadata, created_at')
             .eq('chat_id', chatId)
             .eq('type', type)
             .order('created_at', { ascending: false })
