@@ -1,5 +1,8 @@
 "use client"
 
+// ponytail: prevent static generation, needs runtime env
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { ProjectCreator } from "@/components/text_area/ProjectCreator"

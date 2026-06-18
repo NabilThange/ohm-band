@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { ArrowRightIcon } from '@/components/ui/arrow-right'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
