@@ -185,23 +185,29 @@ export default function Message({ role, children, metadata }) {
 
                                     {bomData && <BOMCard data={bomData} />}
 
-                                    {/* BOM Card - shown inline when update_bom tool call is present */}
+                                    {/* BOM Card - shown inline when BOM tool call is present */}
                                     {toolCalls.length > 0 && (() => {
-                                        // Find BOM tool call (check both name and function.name)
-                                        const bomToolCall = toolCalls.find(tc =>
-                                            (tc.function?.name === 'update_bom') || (tc.name === 'update_bom')
-                                        );
+                                        // Find BOM tool call - support both new (write) and legacy (update_bom) tools
+                                        const bomToolCall = toolCalls.find(tc => {
+                                            const toolName = tc.function?.name || tc.name;
+                                            // New tool: write with artifact_type='bom'
+                                            if (toolName === 'write') {
+                                                const args = tc.function?.arguments || tc.arguments;
+                                                const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                                return parsedArgs?.artifact_type === 'bom';
+                                            }
+                                            // Legacy tool: update_bom
+                                            return toolName === 'update_bom';
+                                        });
 
                                         if (bomToolCall) {
                                             try {
-                                                console.log('[Message] 🔍 Found update_bom tool call:', bomToolCall);
+                                                console.log('[Message] 🔍 Found BOM tool call:', bomToolCall);
 
-                                                // Extract arguments - support multiple formats
-                                                // 1. function.arguments (OpenAI standard)
-                                                // 2. arguments (Direct object)
+                                                // Extract arguments
                                                 let bomArgs = bomToolCall.function?.arguments || bomToolCall.arguments;
 
-                                                // Parse if string, otherwise use as is
+                                                // Parse if string
                                                 let parsedBomData = bomArgs;
                                                 if (typeof bomArgs === 'string') {
                                                     try {
@@ -212,13 +218,16 @@ export default function Message({ role, children, metadata }) {
                                                     }
                                                 }
 
-                                                console.log('[Message] 📄 Parsed BOM Data:', parsedBomData ? 'Object' : 'Null');
+                                                // Extract content from new tool format
+                                                const bomData = parsedBomData?.content || parsedBomData;
 
-                                                if (parsedBomData && parsedBomData.components) {
-                                                    console.log('[Message] 📦 Rendering BOMCard with', parsedBomData.components.length, 'components');
-                                                    return <BOMCard data={parsedBomData} />;
+                                                console.log('[Message] 📄 Parsed BOM Data:', bomData ? 'Object' : 'Null');
+
+                                                if (bomData && bomData.components) {
+                                                    console.log('[Message] 📦 Rendering BOMCard with', bomData.components.length, 'components');
+                                                    return <BOMCard data={bomData} />;
                                                 } else {
-                                                    console.warn('[Message] ⚠️ BOM data missing "components" array:', parsedBomData);
+                                                    console.warn('[Message] ⚠️ BOM data missing "components" array:', bomData);
                                                 }
                                             } catch (e) {
                                                 console.error('[Message] 💥 Unexpected error rendering BOM card:', e);
@@ -227,16 +236,36 @@ export default function Message({ role, children, metadata }) {
                                         return null;
                                     })()}
 
-                                    {/* Code Card - shown inline when add_code_file tool calls are present */}
+                                    {/* Code Card - shown inline when code tool calls are present */}
                                     {toolCalls.length > 0 && (() => {
-                                        const codeToolCalls = toolCalls.filter(tc =>
-                                            (tc.function?.name || tc.name) === 'add_code_file'
-                                        );
+                                        // Find code tool calls - support both new (write) and legacy (add_code_file) tools
+                                        const codeToolCalls = toolCalls.filter(tc => {
+                                            const toolName = tc.function?.name || tc.name;
+                                            // New tool: write with artifact_type='code'
+                                            if (toolName === 'write') {
+                                                const args = tc.function?.arguments || tc.arguments;
+                                                const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                                return parsedArgs?.artifact_type === 'code';
+                                            }
+                                            // Legacy tool: add_code_file
+                                            return toolName === 'add_code_file';
+                                        });
+
                                         if (codeToolCalls.length > 0) {
                                             try {
                                                 const codeFiles = codeToolCalls.map(tc => {
                                                     const args = tc.function?.arguments || tc.arguments;
                                                     const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                                    
+                                                    // Handle new tool format (write with artifact_type='code')
+                                                    if (parsedArgs.artifact_type === 'code') {
+                                                        return {
+                                                            filename: parsedArgs.path,
+                                                            content: parsedArgs.content
+                                                        };
+                                                    }
+                                                    
+                                                    // Handle legacy format (add_code_file)
                                                     return {
                                                         filename: parsedArgs.filename,
                                                         content: parsedArgs.content
@@ -261,6 +290,51 @@ export default function Message({ role, children, metadata }) {
                                             <div className="mt-4 flex flex-wrap gap-2">
                                                 {toolCalls.map((toolCall, idx) => {
                                                     const toolName = toolCall.function?.name || toolCall.name;
+                                                    
+                                                    // Handle new 'write' tool - map artifact_type to drawer
+                                                    if (toolName === 'write') {
+                                                        const args = toolCall.function?.arguments || toolCall.arguments;
+                                                        const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                                        const artifactType = parsedArgs?.artifact_type;
+                                                        
+                                                        const artifactDrawerMap = {
+                                                            'context': { label: 'Open Context Drawer', drawer: 'context' },
+                                                            'mvp': { label: 'Open Context Drawer', drawer: 'context' },
+                                                            'prd': { label: 'Open Context Drawer', drawer: 'context' },
+                                                            'bom': { label: 'Open BOM Drawer', drawer: 'bom' },
+                                                            'code': { label: 'Open Code Drawer', drawer: 'code' },
+                                                            'wiring': { label: 'Open Wiring Drawer', drawer: 'wiring' },
+                                                            'budget': { label: 'Open Budget Drawer', drawer: 'budget' },
+                                                            'enclosure': { label: 'Open Enclosure Drawer', drawer: 'enclosure' },
+                                                        };
+                                                        
+                                                        const config = artifactDrawerMap[artifactType];
+                                                        if (!config) return null;
+                                                        
+                                                        // Deduplicate by drawer type
+                                                        if (renderedDrawers.has(config.drawer)) return null;
+                                                        renderedDrawers.add(config.drawer);
+                                                        
+                                                        return (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => {
+                                                                    console.log('[Message] 💆 Button clicked! Opening drawer:', config.drawer, 'for artifact:', artifactType);
+                                                                    const event = new CustomEvent('open-drawer', {
+                                                                        detail: { drawer: config.drawer }
+                                                                    });
+                                                                    console.log('[Message] 📤 Dispatching event:', event);
+                                                                    window.dispatchEvent(event);
+                                                                    console.log('[Message] ✅ Event dispatched successfully');
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent hover:bg-accent/80 text-accent-foreground transition-colors border border-border cursor-pointer"
+                                                            >
+                                                                {config.label} →
+                                                            </button>
+                                                        );
+                                                    }
+                                                    
+                                                    // Handle legacy tools
                                                     const drawerMap = {
                                                         'update_context': { label: 'Open Context Drawer', drawer: 'context' },
                                                         'update_mvp': { label: 'Open Context Drawer', drawer: 'context' },

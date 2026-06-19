@@ -570,6 +570,7 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                                     if (toolName) {
                                         // Map tool to drawer and open it
                                         const toolDrawerMap = {
+                                            // Legacy tools
                                             'open_context_drawer': 'context',
                                             'update_context': 'context',
                                             'update_mvp': 'context',
@@ -581,9 +582,39 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                                             'update_wiring': 'wiring',
                                             'open_wiring_drawer': 'wiring',
                                             'update_budget': 'budget',
-                                            'open_budget_drawer': 'budget'
+                                            'open_budget_drawer': 'budget',
+                                            // New unified tools
+                                            'open_drawer': (args) => args?.drawer, // Returns drawer name directly
                                         };
-                                        const drawer = toolDrawerMap[toolName];
+                                        
+                                        let drawer = toolDrawerMap[toolName];
+                                        
+                                        // Handle new 'write' tool - extract artifact_type
+                                        if (toolName === 'write') {
+                                            const args = toolCall.function?.arguments || toolCall.arguments;
+                                            const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                            const artifactType = parsedArgs?.artifact_type;
+                                            
+                                            const artifactDrawerMap = {
+                                                'context': 'context',
+                                                'mvp': 'context',
+                                                'prd': 'context',
+                                                'bom': 'bom',
+                                                'code': 'code',
+                                                'wiring': 'wiring',
+                                                'budget': 'budget',
+                                                'enclosure': 'enclosure',
+                                            };
+                                            drawer = artifactDrawerMap[artifactType];
+                                        }
+                                        
+                                        // Handle new 'open_drawer' tool - extract drawer parameter
+                                        if (toolName === 'open_drawer') {
+                                            const args = toolCall.function?.arguments || toolCall.arguments;
+                                            const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
+                                            drawer = parsedArgs?.drawer;
+                                        }
+                                        
                                         if (drawer) {
                                             console.log(`[AIAssistantUI] 🔓 Opening drawer from initial message: ${drawer}`);
                                             window.dispatchEvent(new CustomEvent('open-drawer', { detail: { drawer } }));

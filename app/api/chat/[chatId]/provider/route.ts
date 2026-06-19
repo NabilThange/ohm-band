@@ -19,13 +19,17 @@ export async function GET(
             .from('chat_sessions')
             .select('selected_provider, selected_model')
             .eq('chat_id', chatId)
-            .single();
+            .maybeSingle();  // ponytail: Returns null instead of throwing on 0 rows
 
         if (error) {
             console.error('[GET /api/chat/[chatId]/provider] Error:', error);
-            throw error;
+            return NextResponse.json(
+                { error: error.message || 'Failed to fetch provider settings' }, 
+                { status: 500 }
+            );
         }
 
+        // ponytail: Return defaults for new chats without a session row
         return NextResponse.json({ 
             provider: data?.selected_provider || 'openrouter',
             model: data?.selected_model || null

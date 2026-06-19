@@ -11,6 +11,14 @@ export default function Template({ children }: { children: React.ReactNode }) {
     if (typeof document !== 'undefined' && 'startViewTransition' in document) {
       (document as any).startViewTransition(() => {
         // The route change happens here automatically
+      }).finished.then(() => {
+        // ponytail: Browser bug leaves overflow:hidden stuck after transition
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+      }).catch(() => {
+        // Cleanup even on error
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
       });
     }
   }, [pathname]);

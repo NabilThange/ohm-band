@@ -52,7 +52,7 @@ export const PROVIDER_CONFIGS: Record<ProviderType, ProviderConfig> = {
         supportsStreaming: true,
         supportsVision: false,
         supportsTools: true,
-        rateLimit: { requestsPerMinute: 30, requestsPerDay: 1000 }
+        rateLimit: { requestsPerMinute: 60, requestsPerDay: 1000 }
     },
     aiml: {
         name: 'AIML API',
@@ -187,12 +187,36 @@ export const AVAILABLE_MODELS: Record<ProviderType, ModelOption[]> = {
             pricing: { inputPerMToken: 0.15, outputPerMToken: 0.60, free: false }
         },
         {
+            id: 'x-ai/grok-code-fast-1',
+            name: 'Grok Code Fast 1',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0, outputPerMToken: 0, free: true }
+        },
+        {
+            id: 'openai/gpt-5-1-codex-mini',
+            name: 'GPT-5.1 Codex Mini',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0.10, outputPerMToken: 0.30, free: false }
+        },
+        {
             id: 'deepseek/deepseek-v4-flash',
             name: 'DeepSeek V4 Flash',
             provider: 'aiml',
             capabilities: { streaming: true, vision: false, tools: true },
             contextWindow: 128000,
             pricing: { inputPerMToken: 0.14, outputPerMToken: 0.28, free: false }
+        },
+        {
+            id: 'deepseek/deepseek-reasoner-v3.1-terminus',
+            name: 'DeepSeek Reasoner v3.1 Terminus',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0.55, outputPerMToken: 2.19, free: false }
         },
         {
             id: 'alibaba/qwen3.6-flash',

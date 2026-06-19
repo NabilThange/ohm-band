@@ -1023,10 +1023,27 @@ Examples:
         const toolCalls = result.toolCalls;
 
         console.log(`✅ [Orchestrator] Agent completed! Response length: ${response.length} chars, Tool calls: ${toolCalls.length}`);
+
+        // ponytail: Don't persist empty responses - return error message instead
+        if (response.length === 0 && toolCalls.length === 0) {
+            console.error(`❌ [Orchestrator] Agent returned EMPTY response - aborting persistence`);
+            
+            return {
+                response: "I apologize, but I encountered an issue generating a response. Please try rephrasing your message.",
+                isReadyToLock: false,
+                agentType: finalAgentType,
+                agentName: agentConfig.name,
+                agentIcon: agentConfig.icon,
+                intent: `${intent}_ERROR`,
+                toolCalls: [],
+                questions: undefined,
+                hasQuestions: false,
+                keyRotationEvent: null
+            };
+        }
+
         if (response.length > 0) {
             console.log(`📝 [Orchestrator] First 150 chars: "${response.substring(0, 150)}..."`);
-        } else {
-            console.error(`❌ [Orchestrator] WARNING: Agent returned EMPTY response!`);
         }
 
         // 6.5 Parse questions from response

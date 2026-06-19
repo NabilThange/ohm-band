@@ -81,11 +81,11 @@ export class ConversationSummarizer {
         updatedAt: new Date().toISOString()
       };
 
-      // Try to insert with created_by, but handle schema mismatch gracefully
+      // ponytail: Use content_json for structured data (ConversationSummary is JSON)
       const versionData: any = {
         artifact_id: artifact.id,
         version_number: 1,
-        content: initialSummary
+        content_json: initialSummary
       };
 
       // Only add created_by if userId is a valid UUID (not 'system' or other strings)
@@ -139,20 +139,28 @@ export class ConversationSummarizer {
 
       if (!artifact) return null;
 
-      // Get latest version
+      // ponytail: Read from content_json for structured data
       const { data: version } = await supabase
         .from('artifact_versions')
-        .select('content')
+        .select('content_json')
         .eq('artifact_id', artifact.id)
         .order('version_number', { ascending: false })
         .limit(1)
         .single();
 
-      if (!version) return null;
+      if (!version?.content_json) return null;
+
+      const summary = version.content_json as unknown as ConversationSummary;
+
+      // ponytail: Validate summary structure before returning
+      if (!summary.summary || summary.messageCount === undefined) {
+        console.warn('[Summarizer] Invalid summary structure detected, treating as null');
+        return null;
+      }
 
       return {
         artifactId: artifact.id,
-        summary: version.content as unknown as ConversationSummary
+        summary
       };
     } catch (error) {
       console.error('[Summarizer] Failed to get current summary:', error);
@@ -254,14 +262,22 @@ export class ConversationSummarizer {
         updatedAt: new Date().toISOString()
       };
 
-      // Create new version
-      const newVersionNumber = (current.summary.messageCount / SUMMARY_TRIGGER_THRESHOLD) + 1;
+      // ponytail: Get highest version number from DB, increment by 1 (safer than division)
+      const { data: latestVersion } = await supabase
+        .from('artifact_versions')
+        .select('version_number')
+        .eq('artifact_id', current.artifactId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      // Try to insert with created_by, but handle schema mismatch gracefully
+      const newVersionNumber = (latestVersion?.version_number ?? 0) + 1;
+
+      // ponytail: Use content_json for structured data
       const versionData: any = {
         artifact_id: current.artifactId,
-        version_number: newVersionNumber,  // ponytail: Must include version_number (NOT NULL constraint)
-        content: updatedSummary  // Use content_json for structured data
+        version_number: newVersionNumber,
+        content_json: updatedSummary
       };
 
       // Only add created_by if userId is a valid UUID (not 'system' or other strings)
@@ -388,7 +404,11 @@ Return ONLY the updated summary text, no preamble.`;
   async getSummaryForContext(): Promise<string> {
     const current = await this.getCurrentSummary();
 
-    if (!current || current.summary.messageCount === 0) {
+    // ponytail: Guard against null, undefined, or incomplete summary objects
+    if (!current?.summary || 
+        typeof current.summary !== 'object' ||
+        current.summary.messageCount === undefined ||
+        current.summary.messageCount === 0) {
       return 'New conversation - no prior context';
     }
 
@@ -398,12 +418,12 @@ Return ONLY the updated summary text, no preamble.`;
     if (!snapshot) {
       return `**CONVERSATION CONTEXT** (${current.summary.messageCount} messages):
 
-${current.summary.summary}`;
+${current.summary.summary || 'No summary available'}`;
     }
 
     return `**CONVERSATION CONTEXT** (${current.summary.messageCount} messages):
 
-${current.summary.summary}
+${current.summary.summary || 'No summary available'}
 
 **Quick Facts:**
 - Components: ${snapshot.components?.slice(0, 5).join(', ') || 'None yet'}
