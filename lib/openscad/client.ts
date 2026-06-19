@@ -28,6 +28,11 @@ export async function compileToSTL(
     inputFilename = 'input.scad'
 ): Promise<{ stl: string; error?: string }> {
     try {
+        // ponytail: Reset WASM instance to clear virtual filesystem pollution.
+        // Ceiling: slower (reinit per compile). Upgrade path: proper FS.unlink cleanup.
+        openscadInstance = null
+        initPromise = null
+        
         const instance = await getOpenSCAD()
         const stlData = await instance.renderToStl(scadContent)
         return { stl: stlData }
