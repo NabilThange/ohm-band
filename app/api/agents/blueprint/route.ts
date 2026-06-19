@@ -6,7 +6,7 @@ const orchestrators = new Map<string, AssemblyLineOrchestrator>();
 
 function getOrchestrator(sessionId: string): AssemblyLineOrchestrator {
     if (!orchestrators.has(sessionId)) {
-        orchestrators.set(sessionId, new AssemblyLineOrchestrator());
+        orchestrators.set(sessionId, new AssemblyLineOrchestrator(sessionId));
     }
     return orchestrators.get(sessionId)!;
 }

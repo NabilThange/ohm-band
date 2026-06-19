@@ -50,7 +50,7 @@ Use the above context to inform your response. Reference previous decisions and 
     async getArtifactsMetadata(): Promise<string> {
         const { ArtifactService } = await import('@/lib/db/artifacts');
         
-        const types = ['context', 'mvp', 'prd', 'bom', 'code', 'wiring', 'budget'];
+        const types = ['context', 'mvp', 'prd', 'bom', 'code', 'wiring', 'budget', 'enclosure'];
         const existing: string[] = [];
 
         for (const type of types) {

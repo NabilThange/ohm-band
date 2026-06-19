@@ -29,10 +29,10 @@ export async function GET(
             );
         }
 
-        // ponytail: Return defaults for new chats without a session row
+        // ponytail: Return defaults for new chats without a session row (default is empty string representing AUTO)
         return NextResponse.json({ 
-            provider: data?.selected_provider || 'openrouter',
-            model: data?.selected_model || null
+            provider: data ? (data.selected_provider ?? '') : '',
+            model: data ? (data.selected_model ?? '') : ''
         });
 
     } catch (error: any) {
@@ -59,15 +59,15 @@ export async function PATCH(
         const { provider, model } = await req.json();
 
         // Validation
-        if (!provider || !['openrouter', 'groq', 'aiml'].includes(provider)) {
+        if (provider !== '' && (!provider || !['openrouter', 'groq', 'aiml'].includes(provider))) {
             return NextResponse.json(
-                { error: 'Invalid provider. Must be one of: openrouter, groq, aiml' }, 
+                { error: 'Invalid provider. Must be one of: openrouter, groq, aiml, or empty string' }, 
                 { status: 400 }
             );
         }
 
-        // Validate model if provided
-        if (model && !isValidProviderModel(provider as ProviderType, model)) {
+        // Validate model if provided and provider is not empty
+        if (provider !== '' && model && !isValidProviderModel(provider as ProviderType, model)) {
             return NextResponse.json({ 
                 error: `Invalid model for selected provider: ${model} is not available for ${provider}` 
             }, { status: 400 });
@@ -79,7 +79,7 @@ export async function PATCH(
             .from('chat_sessions')
             .update({ 
                 selected_provider: provider,
-                selected_model: model || null
+                selected_model: provider === '' ? '' : (model || '')
             })
             .eq('chat_id', chatId)
             .select()

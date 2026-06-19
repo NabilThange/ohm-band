@@ -275,7 +275,7 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
             console.log('[AIAssistantUI] 📦 Loading artifacts from database for chat:', selectedId);
 
             try {
-                const types = ['context', 'mvp', 'prd', 'bom', 'code', 'wiring', 'budget'];
+                const types = ['context', 'mvp', 'prd', 'bom', 'code', 'wiring', 'budget', 'enclosure'];
                 const results = await Promise.all(
                     types.map(type => ArtifactService.getLatestArtifact(selectedId, type))
                 );
@@ -289,7 +289,18 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                 // Set legacy state for backwards compatibility
                 if (newArtifacts.bom?.version?.content_json) {
-                    setBomData(newArtifacts.bom.version.content_json);
+                    // ponytail: Map DB field names (component, unit_price) to UI field names (name, estimatedCost)
+                    const bomContent = newArtifacts.bom.version.content_json;
+                    const mappedBom = {
+                        ...bomContent,
+                        components: bomContent.components?.map(c => ({
+                            ...c,
+                            name: c.component || c.name, // Support both field names
+                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0, // ?? handles null/undefined
+                            partNumber: c.partNumber || '' // Ensure partNumber exists
+                        })) || []
+                    };
+                    setBomData(mappedBom);
                 }
                 if (newArtifacts.code?.version?.content_json) {
                     setCodeData(newArtifacts.code.version.content_json);
@@ -309,7 +320,8 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                     bom: !!newArtifacts.bom,
                     code: !!newArtifacts.code,
                     wiring: !!newArtifacts.wiring,
-                    budget: !!newArtifacts.budget
+                    budget: !!newArtifacts.budget,
+                    enclosure: !!newArtifacts.enclosure
                 });
 
                 // Auto-open drawer if we have NEW artifacts - but respect user's closed state
@@ -386,7 +398,18 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                         // Update legacy state
                         if (artifact.type === 'bom' && updated?.version?.content_json) {
-                            setBomData(updated.version.content_json);
+                            // ponytail: Map DB field names to UI field names (same as initial load)
+                            const bomContent = updated.version.content_json;
+                            const mappedBom = {
+                                ...bomContent,
+                                components: bomContent.components?.map(c => ({
+                                    ...c,
+                                    name: c.component || c.name,
+                                    estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
+                                    partNumber: c.partNumber || ''
+                                })) || []
+                            };
+                            setBomData(mappedBom);
                         } else if (artifact.type === 'code' && updated?.version?.content_json) {
                             setCodeData(updated.version.content_json);
                         } else if (['context', 'mvp', 'prd'].includes(artifact.type)) {

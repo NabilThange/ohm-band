@@ -28,7 +28,7 @@ interface ProviderSelectorProps {
 export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorProps) {
     const [providers, setProviders] = useState<Provider[]>([]);
     const [models, setModels] = useState<Model[]>([]);
-    const [selectedProvider, setSelectedProvider] = useState<string>('openrouter');
+    const [selectedProvider, setSelectedProvider] = useState<string>('AUTO');
     const [selectedModel, setSelectedModel] = useState<string>('');
     const [loading, setLoading] = useState(false);
 
@@ -39,7 +39,6 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
             .then(data => {
                 setProviders(data.providers);
                 setModels(data.models);
-                setSelectedProvider(data.defaultProvider);
             })
             .catch(err => console.error('Failed to load providers:', err));
     }, []);
@@ -50,7 +49,7 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
             fetch(`/api/chat/${chatId}/provider`)
                 .then(res => res.json())
                 .then(data => {
-                    setSelectedProvider(data.provider || 'openrouter');
+                    setSelectedProvider(data.provider === '' ? 'AUTO' : (data.provider || 'AUTO'));
                     setSelectedModel(data.model || '');
                 })
                 .catch(err => console.error('Failed to load session preferences:', err));
@@ -60,12 +59,12 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
     const handleProviderChange = async (newProvider: string) => {
         setSelectedProvider(newProvider);
         setSelectedModel(''); // Reset model when provider changes
-        await updateSession(newProvider, '');
+        await updateSession(newProvider === 'AUTO' ? '' : newProvider, '');
     };
 
     const handleModelChange = async (newModel: string) => {
         setSelectedModel(newModel);
-        await updateSession(selectedProvider, newModel);
+        await updateSession(selectedProvider === 'AUTO' ? '' : selectedProvider, newModel);
     };
 
     const updateSession = async (provider: string, model: string) => {
@@ -91,7 +90,7 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
         }
     };
 
-    const filteredModels = models.filter(m => m.provider === selectedProvider);
+    const filteredModels = selectedProvider === 'AUTO' ? [] : models.filter(m => m.provider === selectedProvider);
 
     return (
         <div className="flex gap-4 items-end">
@@ -104,6 +103,15 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
                         <SelectValue placeholder="Select provider" />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="AUTO">
+                            <div className="flex items-center gap-2">
+                                <span>AUTO</span>
+                                <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                    Optimized per agent
+                                </Badge>
+                            </div>
+                        </SelectItem>
+                        <div className="h-px bg-border my-1" />
                         {providers.map(p => (
                             <SelectItem key={p.id} value={p.id}>
                                 {p.name}
@@ -118,27 +126,33 @@ export function ProviderSelector({ chatId, onProviderChange }: ProviderSelectorP
                     Model
                 </Label>
                 <Select 
-                    value={selectedModel} 
+                    value={selectedModel || 'AUTO'} 
                     onValueChange={handleModelChange} 
-                    disabled={loading || !filteredModels.length}
+                    disabled={loading || selectedProvider === 'AUTO' || !filteredModels.length}
                 >
                     <SelectTrigger id="model" className="h-9">
-                        <SelectValue placeholder="Auto-select (Default)" />
+                        <SelectValue placeholder="AUTO (per-agent defaults)" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">Auto-select (Default)</SelectItem>
-                        {filteredModels.map(m => (
-                            <SelectItem key={m.id} value={m.id}>
-                                <div className="flex items-center gap-2">
-                                    <span className="truncate">{m.name}</span>
-                                    {m.pricing.free && (
-                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                                            Free
-                                        </Badge>
-                                    )}
-                                </div>
-                            </SelectItem>
-                        ))}
+                        {selectedProvider === 'AUTO' ? (
+                            <SelectItem value="AUTO">AUTO (per-agent defaults)</SelectItem>
+                        ) : (
+                            <>
+                                <SelectItem value="">Auto-select (Default)</SelectItem>
+                                {filteredModels.map(m => (
+                                    <SelectItem key={m.id} value={m.id}>
+                                        <div className="flex items-center gap-2">
+                                            <span className="truncate">{m.name}</span>
+                                            {m.pricing.free && (
+                                                <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                                    Free
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </>
+                        )}
                     </SelectContent>
                 </Select>
             </div>

@@ -3,7 +3,7 @@ import { AGENTS, type AgentType, getChatAgentType, getModelForAgent } from "./co
 import { KeyManager, type KeyRotationEvent } from "./key-manager";
 import { getToolsForAgent, type ToolCall } from "./tools";
 import { ConversationSummarizer } from "./summarizer";
-import { getProviderConfig, getNextProvider, validateProviderModel, type ProviderType } from "./provider-config";
+import { getProviderConfig, getNextProvider, validateProviderModel, type ProviderType, getAgentAutoConfig, getActiveProvider } from "./provider-config";
 import { parseQuestions } from "./question-parser";
 import { ProjectStateService } from "@/lib/stages/project-state";
 import { buildOrchestratorPrompt } from "@/lib/stages/prompt-builder";
@@ -111,23 +111,57 @@ export class AgentRunner {
     }
 
     /**
+     * Determine if error is provider-level (timeout, network, 5xx)
+     */
+    private isProviderLevelFailure(error: any): boolean {
+        const errorMessage = error.message?.toLowerCase() || '';
+        const statusCode = error.status || error.statusCode;
+        
+        if ([500, 502, 503, 504].includes(statusCode)) return true;
+        if (errorMessage.includes('timeout')) return true;
+        if (errorMessage.includes('connection')) return true;
+        if (errorMessage.includes('network')) return true;
+        if (errorMessage.includes('unavailable')) return true;
+        
+        // Tool errors, validations, or auth failures are NOT provider-level failures
+        if (errorMessage.includes('tool')) return false;
+        if (errorMessage.includes('function')) return false;
+        if (errorMessage.includes('schema')) return false;
+        if (errorMessage.includes('validation')) return false;
+        if (errorMessage.includes('api key') || errorMessage.includes('auth')) return false;
+        
+        return false;
+    }
+
+    /**
      * Execute API call with automatic failover
-     * @param overrideProvider Optional provider to use instead of default
      */
     private async executeWithRetry<T>(
-        operation: (client: OpenAI) => Promise<T>,
+        operation: (client: OpenAI, provider: ProviderType) => Promise<T>,
         operationName: string = "API Call",
-        overrideProvider?: ProviderType
+        overrideProvider?: ProviderType | '',
+        autoFallbackConfig?: {
+            fallbackProvider: ProviderType;
+            fallbackModel: string;
+            allowFallback: boolean;
+        }
     ): Promise<T> {
         const keyManager = KeyManager.getInstance();
+        const activeProvider = overrideProvider || getActiveProvider();
+        
+        // Ensure KeyManager loads correct keys if they aren't loaded
+        if (keyManager.getCurrentProvider() !== activeProvider) {
+            keyManager.reloadKeysForProvider(activeProvider);
+        }
+        
         const totalKeys = keyManager.getTotalKeys();
-        const providerConfig = getProviderConfig(overrideProvider);
+        const providerConfig = getProviderConfig(activeProvider);
         let attempt = 0;
 
         while (attempt < totalKeys) {
             try {
-                const client = await ProviderClient.getInstance(overrideProvider);
-                const result = await operation(client);
+                const client = await ProviderClient.getInstance(activeProvider);
+                const result = await operation(client, activeProvider);
 
                 // Record success
                 keyManager.recordSuccess();
@@ -145,15 +179,19 @@ export class AgentRunner {
                     // Try to rotate
                     const rotated = keyManager.rotateKey();
                     if (!rotated) {
-                        throw new Error(
-                            `❌ All ${totalKeys} API keys exhausted for ${providerConfig.name}. Please add credits or switch providers.`
-                        );
+                        break; // Break loop to switch provider
                     }
 
                     // Force client refresh and retry
-                    await ProviderClient.getInstance(overrideProvider, true);
+                    await ProviderClient.getInstance(activeProvider, true);
                     console.log(`🔄 Retrying ${operationName} with new key...`);
                     continue;
+                }
+
+                // In AUTO mode, check if it's a provider-level error (5xx, timeout, connection)
+                if (autoFallbackConfig?.allowFallback && this.isProviderLevelFailure(error)) {
+                    console.warn(`⚠️ Provider-level failure on ${providerConfig.name}: ${error.message}. Triggering fallback...`);
+                    break; 
                 }
 
                 // Non-quota error - don't retry
@@ -162,10 +200,29 @@ export class AgentRunner {
             }
         }
 
-        // All keys exhausted for current provider - try next provider
+        // AUTO mode fallback triggers first
+        if (autoFallbackConfig?.allowFallback) {
+            console.warn(`🔄 [AgentRunner] AUTO mode: Falling back from ${providerConfig.name} to ${autoFallbackConfig.fallbackProvider} / ${autoFallbackConfig.fallbackModel}`);
+            try {
+                return await this.executeWithRetry(
+                    operation,
+                    operationName,
+                    autoFallbackConfig.fallbackProvider,
+                    {
+                        ...autoFallbackConfig,
+                        allowFallback: false // prevent loops
+                    }
+                );
+            } catch (fallbackError: any) {
+                console.error(`❌ [Fallback Failed] ${autoFallbackConfig.fallbackProvider} also failed:`, fallbackError.message);
+                throw fallbackError;
+            }
+        }
+
+        // All keys exhausted for current provider - try default next provider in chain
         console.warn(`💀 All keys exhausted for ${providerConfig.name}, trying next provider...`);
         
-        const nextProvider = getNextProvider(providerConfig.name as ProviderType);
+        const nextProvider = getNextProvider(activeProvider);
         if (nextProvider) {
             console.log(`🔄 Switching to ${nextProvider}...`);
             const switched = keyManager.switchProvider(nextProvider);
@@ -236,14 +293,14 @@ export class AgentRunner {
         ];
 
         // NEW: Get actual model with overrides
-        const actualModel = getModelForAgent(
+        const modelConfig = getModelForAgent(
             agentType,
             options?.overrideProvider,
             options?.overrideModel
         );
         
         const providerName = options?.overrideProvider || getProviderConfig().name;
-        console.log(`🤖 Running ${agent.name} (${actualModel} via ${providerName})...`);
+        console.log(`🤖 Running ${agent.name} (configured: ${modelConfig.model} via ${modelConfig.provider})${modelConfig.isAuto ? ' [AUTO]' : ''}...`);
         console.log(`📊 [Orchestrator] Messages count: ${fullMessages.length}, System prompt length: ${systemPrompt.length} chars`);
 
         // Get tools for this agent
@@ -257,18 +314,37 @@ export class AgentRunner {
             { model: 'nex-agi/nex-n2-pro:free', provider: 'openrouter' as ProviderType },
             { model: 'openai/gpt-4.1-nano-2025-04-14', provider: 'aiml' as ProviderType }
         ];
+
+        // Prepare AUTO fallback config
+        let autoFallbackConfig = undefined;
+        if (modelConfig.isAuto) {
+            const fallbackConf = getAgentAutoConfig(agentType).fallback;
+            autoFallbackConfig = {
+                fallbackProvider: fallbackConf.provider,
+                fallbackModel: fallbackConf.model,
+                allowFallback: true
+            };
+        }
         
         try {
             const result = await this.executeWithRetry(
-                async (client) => {
+                async (client, provider) => {
+                    const activeModelConfig = getModelForAgent(
+                        agentType,
+                        provider,
+                        options?.overrideModel
+                    );
+                    const activeModel = activeModelConfig.model;
+                    
                     if (options?.stream) {
-                        return await this.runStreamingAgentWithTools(client, agent, actualModel, fullMessages, tools, options?.onStream, options?.onToolCall);
+                        return await this.runStreamingAgentWithTools(client, agent, activeModel, fullMessages, tools, options?.onStream, options?.onToolCall);
                     } else {
-                        return await this.runNonStreamingAgentWithTools(client, agent, actualModel, fullMessages, tools, options?.onToolCall);
+                        return await this.runNonStreamingAgentWithTools(client, agent, activeModel, fullMessages, tools, options?.onToolCall);
                     }
                 },
                 agent.name,
-                options?.overrideProvider
+                modelConfig.provider,
+                autoFallbackConfig
             );
 
             // ponytail: Check if tools were expected but not used (model doesn't support function calling properly)
@@ -279,13 +355,13 @@ export class AgentRunner {
                 if (hasToolLikeContent) {
                     // Try fallback models in order
                     for (const fallback of fallbackOptions) {
-                        if (actualModel === fallback.model) continue; // Skip if already using this model
+                        if (modelConfig.model === fallback.model) continue; // Skip if already using this model
                         
-                        console.warn(`⚠️ [Orchestrator] Model ${actualModel} returned text instead of tool calls, retrying with ${fallback.model}...`);
+                        console.warn(`⚠️ [Orchestrator] Model ${modelConfig.model} returned text instead of tool calls, retrying with ${fallback.model}...`);
                         
                         try {
                             return await this.executeWithRetry(
-                                async (client) => {
+                                async (client, provider) => {
                                     if (options?.stream) {
                                         return await this.runStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onStream, options?.onToolCall);
                                     } else {
@@ -318,14 +394,14 @@ export class AgentRunner {
             if (needsTools && isToolError && !isValidationError) {
                 // Try fallback models in order
                 for (const fallback of fallbackOptions) {
-                    if (actualModel === fallback.model) continue; // Skip if already using this model
+                    if (modelConfig.model === fallback.model) continue; // Skip if already using this model
                     
-                    console.warn(`⚠️ [Orchestrator] Tool calling failed with ${actualModel}, retrying with ${fallback.model}...`);
+                    console.warn(`⚠️ [Orchestrator] Tool calling failed with ${modelConfig.model}, retrying with ${fallback.model}...`);
                     console.warn(`⚠️ Original error: ${error.message}`);
                     
                     try {
                         return await this.executeWithRetry(
-                            async (client) => {
+                            async (client, provider) => {
                                 if (options?.stream) {
                                     return await this.runStreamingAgentWithTools(client, agent, fallback.model, fullMessages, tools, options?.onStream, options?.onToolCall);
                                 } else {
@@ -696,7 +772,11 @@ export class AgentRunner {
     async runVisionAgent(
         agentType: AgentType,
         imageUrl: string,
-        blueprintJson: string
+        blueprintJson: string,
+        options?: {
+            overrideProvider?: ProviderType;
+            overrideModel?: string;
+        }
     ): Promise<string> {
         const agent = AGENTS[agentType];
 
@@ -704,14 +784,28 @@ export class AgentRunner {
             throw new Error(`Unknown agent type: ${agentType}`);
         }
 
-        const actualModel = getModelForAgent(agentType);
-        console.log(`👁️ Running ${agent.name} with vision (${actualModel})...`);
+        const modelConfig = getModelForAgent(agentType, options?.overrideProvider, options?.overrideModel);
+        const actualModel = modelConfig.model;
+        console.log(`👁️ Running ${agent.name} with vision (${actualModel} via ${modelConfig.provider})${modelConfig.isAuto ? ' [AUTO]' : ''}...`);
+
+        let autoFallbackConfig = undefined;
+        if (modelConfig.isAuto) {
+            const fallbackConf = getAgentAutoConfig(agentType).fallback;
+            autoFallbackConfig = {
+                fallbackProvider: fallbackConf.provider,
+                fallbackModel: fallbackConf.model,
+                allowFallback: true
+            };
+        }
 
         return this.executeWithRetry(
-            async (client) => {
+            async (client, provider) => {
+                const activeModelConfig = getModelForAgent(agentType, provider, options?.overrideModel);
+                const activeModel = activeModelConfig.model;
+
                 // Create request params - BYTEZ only supports max_tokens, not max_completion_tokens
                 const requestParams: any = {
-                    model: actualModel,
+                    model: activeModel,
                     messages: [
                         { role: "system", content: agent.systemPrompt },
                         {
@@ -731,12 +825,6 @@ export class AgentRunner {
                     temperature: agent.temperature
                 };
 
-                // Only add max_tokens (BYTEZ doesn't support max_completion_tokens)
-                // Temporarily commented out - BYTEZ API is rejecting this parameter
-                // if (agent.maxTokens) {
-                //     requestParams.max_tokens = agent.maxTokens;
-                // }
-
                 const response = await client.chat.completions.create(requestParams);
 
                 const content = response.choices[0]?.message?.content || "";
@@ -744,7 +832,9 @@ export class AgentRunner {
 
                 return content;
             },
-            `${agent.name} (Vision)`
+            `${agent.name} (Vision)`,
+            modelConfig.provider,
+            autoFallbackConfig
         );
     }
 }
@@ -883,8 +973,8 @@ Examples:
                     overrideProvider = session.selected_provider as ProviderType | undefined;
                     overrideModel = session.selected_model || undefined;
                     
-                    if (overrideProvider) {
-                        console.log(`🎛️ [Orchestrator] Session preferences: ${overrideProvider}${overrideModel ? ` / ${overrideModel}` : ''}`);
+                    if (overrideProvider !== undefined && overrideProvider !== null) {
+                        console.log(`🎛️ [Orchestrator] Session preferences: ${overrideProvider || 'AUTO'}${overrideModel ? ` / ${overrideModel}` : ''}`);
                         
                         // Validate provider/model combination
                         const validation = validateProviderModel(overrideProvider, overrideModel);
@@ -930,7 +1020,11 @@ Examples:
                     const intentResult = await this.runner.runAgent(
                         'orchestrator',
                         [{ role: 'user', content: orchestratorPrompt }],
-                        { stream: false }
+                        { 
+                            stream: false,
+                            overrideProvider,
+                            overrideModel
+                        }
                     );
 
                     const selectedAgent = intentResult.response.trim().toLowerCase() as AgentType;
@@ -1169,9 +1263,35 @@ Examples:
             .map(msg => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`)
             .join("\n\n");
 
+        let overrideProvider: ProviderType | undefined;
+        let overrideModel: string | undefined;
+
+        if (this.chatId) {
+            try {
+                const { getSupabaseClient } = await import('@/lib/supabase/client');
+                const supabase = getSupabaseClient();
+                const { data: session } = await supabase
+                    .from('chat_sessions')
+                    .select('selected_provider, selected_model')
+                    .eq('chat_id', this.chatId)
+                    .single();
+
+                if (session) {
+                    overrideProvider = session.selected_provider as ProviderType | undefined;
+                    overrideModel = session.selected_model || undefined;
+                }
+            } catch (error) {
+                console.error('[generateBlueprint] Failed to load session overrides:', error);
+            }
+        }
+
         const result = await this.runner.runAgent("bomGenerator", [
             { role: "user", content: `Based on this conversation, create the comprehensive BOM and Blueprint:\n\n${summary}` }
-        ]);
+        ], {
+            overrideProvider,
+            overrideModel,
+            chatId: this.chatId || undefined
+        });
 
         const blueprintJson = result.response;
 
@@ -1199,10 +1319,38 @@ Examples:
      * Step 3: Generate Code (Code Generator)
      */
     async generateCode(blueprintJson: string, onStream?: (chunk: string) => void): Promise<string> {
+        let overrideProvider: ProviderType | undefined;
+        let overrideModel: string | undefined;
+
+        if (this.chatId) {
+            try {
+                const { getSupabaseClient } = await import('@/lib/supabase/client');
+                const supabase = getSupabaseClient();
+                const { data: session } = await supabase
+                    .from('chat_sessions')
+                    .select('selected_provider, selected_model')
+                    .eq('chat_id', this.chatId)
+                    .single();
+
+                if (session) {
+                    overrideProvider = session.selected_provider as ProviderType | undefined;
+                    overrideModel = session.selected_model || undefined;
+                }
+            } catch (error) {
+                console.error('[generateCode] Failed to load session overrides:', error);
+            }
+        }
+
         const result = await this.runner.runAgent(
             "codeGenerator",
             [{ role: "user", content: `Here is the authorized Blueprint:\n\n${blueprintJson}\n\nGenerate the firmware code.` }],
-            { stream: true, onStream }
+            { 
+                stream: true, 
+                onStream,
+                overrideProvider,
+                overrideModel,
+                chatId: this.chatId || undefined
+            }
         );
 
         const code = result.response;
@@ -1229,10 +1377,33 @@ Examples:
      * Step 4: Verify Circuit (Circuit Verifier)
      */
     async verifyCircuit(imageUrl: string, blueprintJson: string): Promise<string> {
+        let overrideProvider: ProviderType | undefined;
+        let overrideModel: string | undefined;
+
+        if (this.chatId) {
+            try {
+                const { getSupabaseClient } = await import('@/lib/supabase/client');
+                const supabase = getSupabaseClient();
+                const { data: session } = await supabase
+                    .from('chat_sessions')
+                    .select('selected_provider, selected_model')
+                    .eq('chat_id', this.chatId)
+                    .single();
+
+                if (session) {
+                    overrideProvider = session.selected_provider as ProviderType | undefined;
+                    overrideModel = session.selected_model || undefined;
+                }
+            } catch (error) {
+                console.error('[verifyCircuit] Failed to load session overrides:', error);
+            }
+        }
+
         const inspectionResult = await this.runner.runVisionAgent(
             "circuitVerifier",
             imageUrl,
-            blueprintJson
+            blueprintJson,
+            { overrideProvider, overrideModel }
         );
 
         // Note: Persist verification to 'circuit_verifications' table if needed

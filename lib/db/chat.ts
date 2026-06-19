@@ -28,8 +28,8 @@ export const ChatService = {
             .from('chat_sessions')
             .insert({ 
                 chat_id: chat.id,
-                selected_provider: 'groq', // Default provider
-                selected_model: 'openai/gpt-oss-120b'  // Default to GPT OSS 120B
+                selected_provider: '', // Default to AUTO mode
+                selected_model: ''     // Default to AUTO mode
             })
 
         if (sessionError) console.warn('Failed to create chat session:', sessionError)
@@ -56,8 +56,8 @@ export const ChatService = {
             .from('chat_sessions')
             .insert({ 
                 chat_id: chat.id,
-                selected_provider: 'groq', // Default provider
-                selected_model: 'openai/gpt-oss-120b'  // Default to GPT OSS 120B
+                selected_provider: '', // Default to AUTO mode
+                selected_model: ''     // Default to AUTO mode
             })
 
         if (sessionError) console.warn('Failed to create chat session:', sessionError)

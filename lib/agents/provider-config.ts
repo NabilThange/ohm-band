@@ -225,6 +225,38 @@ export const AVAILABLE_MODELS: Record<ProviderType, ModelOption[]> = {
             capabilities: { streaming: true, vision: false, tools: true },
             contextWindow: 32000,
             pricing: { inputPerMToken: 0, outputPerMToken: 0, free: true }
+        },
+        {
+            id: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            name: 'DeepSeek Non-Reasoner v3.1 Terminus',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0.14, outputPerMToken: 0.28, free: false }
+        },
+        {
+            id: 'zhipu/glm-4.6',
+            name: 'GLM-4.6 (Conversational Fallback)',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0.10, outputPerMToken: 0.30, free: false }
+        },
+        {
+            id: 'alibaba/qwen3-vl-plus',
+            name: 'Qwen 3 VL Plus (Vision)',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: true, tools: true },
+            contextWindow: 32000,
+            pricing: { inputPerMToken: 0.10, outputPerMToken: 0.30, free: false }
+        },
+        {
+            id: 'openai/gpt-5.1-codex-mini',
+            name: 'GPT-5.1 Codex Mini',
+            provider: 'aiml',
+            capabilities: { streaming: true, vision: false, tools: true },
+            contextWindow: 128000,
+            pricing: { inputPerMToken: 0.10, outputPerMToken: 0.30, free: false }
         }
     ]
 };
@@ -277,10 +309,15 @@ export class ProviderValidationError extends Error {
  * Returns validation result with fallback options if invalid
  */
 export function validateProviderModel(
-    provider: ProviderType | undefined,
+    provider: ProviderType | '' | undefined,
     model: string | undefined
 ): { valid: boolean; error?: string; fallback?: { provider: ProviderType; model: string } } {
-    // If no provider specified, use default
+    // If provider is empty string, representing AUTO, it is always valid
+    if (provider === '') {
+        return { valid: true };
+    }
+
+    // If no provider specified or empty, use default
     if (!provider) {
         const defaultProvider = getActiveProvider();
         const defaultConfig = PROVIDER_CONFIGS[defaultProvider];
@@ -291,7 +328,7 @@ export function validateProviderModel(
     }
 
     // Validate provider exists
-    if (!PROVIDER_CONFIGS[provider]) {
+    if (!PROVIDER_CONFIGS[provider as ProviderType]) {
         return {
             valid: false,
             error: `Invalid provider: ${provider}`,
@@ -303,17 +340,17 @@ export function validateProviderModel(
     if (!model) {
         return {
             valid: true,
-            fallback: { provider, model: PROVIDER_CONFIGS[provider].defaultModel }
+            fallback: { provider: provider as ProviderType, model: PROVIDER_CONFIGS[provider as ProviderType].defaultModel }
         };
     }
 
     // Validate model exists for this provider
-    const validModel = isValidProviderModel(provider, model);
+    const validModel = isValidProviderModel(provider as ProviderType, model);
     if (!validModel) {
         return {
             valid: false,
             error: `Model ${model} not available for provider ${provider}`,
-            fallback: { provider, model: PROVIDER_CONFIGS[provider].defaultModel }
+            fallback: { provider: provider as ProviderType, model: PROVIDER_CONFIGS[provider as ProviderType].defaultModel }
         };
     }
 
@@ -326,6 +363,177 @@ export function getProviderConfig(provider?: ProviderType): ProviderConfig {
     if (!config) {
         console.warn(`Invalid provider: ${activeProvider}, falling back to openrouter`);
         return PROVIDER_CONFIGS['openrouter'];
+    }
+    return config;
+}
+
+// ============================================
+// Per-Agent AUTO Mode Configurations
+// ============================================
+
+export interface AgentModelConfig {
+    provider: ProviderType;
+    model: string;
+    rationale?: string;
+}
+
+export interface AgentProviderMapping {
+    primary: AgentModelConfig;
+    fallback: AgentModelConfig;
+}
+
+export const AGENT_MODEL_CONFIGS: Record<string, AgentProviderMapping> = {
+    orchestrator: {
+        primary: {
+            provider: 'groq',
+            model: 'openai/gpt-oss-120b',
+            rationale: 'Fast intent routing, low latency'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            rationale: 'Reliable for simple classification'
+        }
+    },
+    projectInitializer: {
+        primary: {
+            provider: 'groq',
+            model: 'openai/gpt-oss-120b',
+            rationale: 'No tools called — fast generation is enough'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            rationale: 'Cheap, reliable chat-model fallback'
+        }
+    },
+    conversational: {
+        primary: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-reasoner-v3.1-terminus',
+            rationale: 'Thinking mode for planning parallel multi-tool write'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'zhipu/glm-4.6',
+            rationale: 'Conversational fallback if reasoner is unavailable'
+        }
+    },
+    bomGenerator: {
+        primary: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-reasoner-v3.1-terminus',
+            rationale: 'Thinking mode for precision component selection'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-v4-flash',
+            rationale: 'Strong technical reasoning fallback'
+        }
+    },
+    codeGenerator: {
+        primary: {
+            provider: 'aiml',
+            model: 'x-ai/grok-code-fast-1',
+            rationale: 'Built specifically for agentic tool-calling reliability'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'openai/gpt-5.1-codex-mini',
+            rationale: 'Code-specialized fallback'
+        }
+    },
+    wiringDiagram: {
+        primary: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            rationale: 'Deterministic wiring connection schema generation'
+        },
+        fallback: {
+            provider: 'groq',
+            model: 'openai/gpt-oss-120b',
+            rationale: 'Fast fallback, avoiding Llama due to known failure pattern'
+        }
+    },
+    debugger: {
+        primary: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-reasoner-v3.1-terminus',
+            rationale: 'Thinking mode for cross-domain analysis before decisions'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-v4-flash',
+            rationale: 'Technical reasoning strength, cheap fallback'
+        }
+    },
+    datasheetAnalyzer: {
+        primary: {
+            provider: 'aiml',
+            model: 'alibaba/qwen3-vl-plus',
+            rationale: 'Vision required for datasheet parsing'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'gpt-4o-mini',
+            rationale: 'Vision-capable fallback'
+        }
+    },
+    budgetOptimizer: {
+        primary: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            rationale: 'Only 1 tool pair — non-reasoner is enough'
+        },
+        fallback: {
+            provider: 'groq',
+            model: 'llama-3.3-70b-versatile',
+            rationale: 'Fast, cheap alternative'
+        }
+    },
+    conversationSummarizer: {
+        primary: {
+            provider: 'groq',
+            model: 'openai/gpt-oss-120b',
+            rationale: 'No tools, background task — pure speed/cost play'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'deepseek/deepseek-non-reasoner-v3.1-terminus',
+            rationale: 'Standard cheap chat fallback'
+        }
+    },
+    circuitVerifier: {
+        primary: {
+            provider: 'aiml',
+            model: 'alibaba/qwen3-vl-plus',
+            rationale: 'Vision input required to inspect circuit breadboard photo'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'gpt-4o-mini',
+            rationale: 'Vision-capable fallback'
+        }
+    },
+    enclosureGenerator: {
+        primary: {
+            provider: 'aiml',
+            model: 'x-ai/grok-code-fast-1',
+            rationale: 'Stateful tool sequences for enclosure design'
+        },
+        fallback: {
+            provider: 'aiml',
+            model: 'openai/gpt-5.1-codex-mini',
+            rationale: 'Strong code generation fallback'
+        }
+    }
+};
+
+export function getAgentAutoConfig(agentType: string): AgentProviderMapping {
+    const config = AGENT_MODEL_CONFIGS[agentType];
+    if (!config) {
+        console.warn(`No AUTO config for agent: ${agentType}, using orchestrator config`);
+        return AGENT_MODEL_CONFIGS.orchestrator;
     }
     return config;
 }

@@ -1,4 +1,4 @@
-import { getProviderConfig, getModelById, getActiveProvider, type ProviderType } from "./provider-config";
+import { getProviderConfig, getModelById, getActiveProvider, type ProviderType, getAgentAutoConfig } from "./provider-config";
 
 /**
  * OHM Multi-Agent System - Enhanced Prompts
@@ -813,21 +813,38 @@ base();
 // Helper function to get actual model name based on provider config
 export function getModelForAgent(
     agentType: AgentType,
-    overrideProvider?: ProviderType,
+    overrideProvider?: ProviderType | '',
     overrideModel?: string
-): string {
-    // If explicit model override provided, validate and use it
-    if (overrideModel) {
+): { provider: ProviderType; model: string; isAuto: boolean } {
+    // Normalize empty string to undefined for AUTO detection
+    const isAutoProvider = !overrideProvider;
+    const isAutoModel = !overrideModel;
+    
+    // AUTO MODE: Use agent-specific config
+    if (isAutoProvider && isAutoModel) {
+        const autoConfig = getAgentAutoConfig(agentType);
+        return {
+            provider: autoConfig.primary.provider,
+            model: autoConfig.primary.model,
+            isAuto: true
+        };
+    }
+
+    // MANUAL OVERRIDE: Explicit model provided
+    if (overrideModel && !isAutoModel) {
         const modelOption = getModelById(overrideModel);
         const activeProvider = overrideProvider || getActiveProvider();
         if (modelOption && modelOption.provider === activeProvider) {
-            return overrideModel;
+            return { provider: activeProvider, model: overrideModel, isAuto: false };
         }
         console.warn(`Invalid model override: ${overrideModel}, falling back to default`);
     }
 
-    // Otherwise use provider's model mapping based on agent role
+    // PROVIDER-ONLY OVERRIDE: Use provider's model mapping
+    const provider = overrideProvider || getActiveProvider();
     const agent = AGENTS[agentType];
-    const providerConfig = getProviderConfig(overrideProvider);
-    return providerConfig.modelMappings[agent.modelRole] || providerConfig.defaultModel;
+    const providerConfig = getProviderConfig(provider);
+    const model = providerConfig.modelMappings[agent.modelRole] || providerConfig.defaultModel;
+
+    return { provider, model, isAuto: false };
 }

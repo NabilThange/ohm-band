@@ -237,7 +237,7 @@ export type Database = {
                     budget_target: number | null
                     last_active_at: string | null
                     created_at: string
-                    selected_provider: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_provider: 'openrouter' | 'groq' | 'aiml' | '' | null
                     selected_model: string | null
                     provider_metadata: Json | null
                     // Stage-gating fields
@@ -257,7 +257,7 @@ export type Database = {
                     budget_target?: number | null
                     last_active_at?: string | null
                     created_at?: string
-                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | '' | null
                     selected_model?: string | null
                     provider_metadata?: Json | null
                     // Stage-gating fields
@@ -277,7 +277,7 @@ export type Database = {
                     budget_target?: number | null
                     last_active_at?: string | null
                     created_at?: string
-                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | null
+                    selected_provider?: 'openrouter' | 'groq' | 'aiml' | '' | null
                     selected_model?: string | null
                     provider_metadata?: Json | null
                     // Stage-gating fields

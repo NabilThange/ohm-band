@@ -224,8 +224,19 @@ export default function Message({ role, children, metadata }) {
                                                 console.log('[Message] 📄 Parsed BOM Data:', bomData ? 'Object' : 'Null');
 
                                                 if (bomData && bomData.components) {
-                                                    console.log('[Message] 📦 Rendering BOMCard with', bomData.components.length, 'components');
-                                                    return <BOMCard data={bomData} />;
+                                                    // ponytail: Map DB field names (component, unit_price) to UI field names (name, estimatedCost)
+                                                    const mappedBomData = {
+                                                        ...bomData,
+                                                        components: bomData.components.map(c => ({
+                                                            ...c,
+                                                            name: c.component || c.name, // Support both field names
+                                                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
+                                                            partNumber: c.partNumber || ''
+                                                        }))
+                                                    };
+                                                    
+                                                    console.log('[Message] 📦 Rendering BOMCard with', mappedBomData.components.length, 'components');
+                                                    return <BOMCard data={mappedBomData} />;
                                                 } else {
                                                     console.warn('[Message] ⚠️ BOM data missing "components" array:', bomData);
                                                 }

@@ -56,7 +56,7 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
     // Provider/Model state
     const [providers, setProviders] = useState<Provider[]>([]);
     const [models, setModels] = useState<Model[]>([]);
-    const [selectedProvider, setSelectedProvider] = useState<string>('groq');
+    const [selectedProvider, setSelectedProvider] = useState<string>('AUTO');
     const [selectedModel, setSelectedModel] = useState<string>('');
     const [showProviderMenu, setShowProviderMenu] = useState(false);
     const [showModelMenu, setShowModelMenu] = useState(false);
@@ -70,7 +70,6 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
             .then(data => {
                 setProviders(data.providers);
                 setModels(data.models);
-                setSelectedProvider(data.defaultProvider);
             })
             .catch(err => console.error('Failed to load providers:', err));
     }, []);
@@ -81,7 +80,7 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
             fetch(`/api/chat/${chatId}/provider`)
                 .then(res => res.json())
                 .then(data => {
-                    setSelectedProvider(data.provider || 'groq');
+                    setSelectedProvider(data.provider === '' ? 'AUTO' : (data.provider || 'AUTO'));
                     setSelectedModel(data.model || '');
                 })
                 .catch(err => console.error('Failed to load session preferences:', err));
@@ -119,18 +118,18 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
         setSelectedProvider(providerId);
         setSelectedModel(''); // Reset model
         setShowProviderMenu(false);
-        await updateSessionProvider(providerId, '');
+        await updateSessionProvider(providerId === 'AUTO' ? '' : providerId, '');
     };
 
     const handleModelChange = async (modelId: string) => {
         setSelectedModel(modelId);
         setShowModelMenu(false);
-        await updateSessionProvider(selectedProvider, modelId);
+        await updateSessionProvider(selectedProvider === 'AUTO' ? '' : selectedProvider, modelId);
     };
 
-    const filteredModels = models.filter(m => m.provider === selectedProvider);
-    const currentProvider = providers.find(p => p.id === selectedProvider);
-    const currentModel = models.find(m => m.id === selectedModel);
+    const filteredModels = selectedProvider === 'AUTO' ? [] : models.filter(m => m.provider === selectedProvider);
+    const currentProvider = selectedProvider === 'AUTO' ? { id: 'AUTO', name: 'AUTO' } : providers.find(p => p.id === selectedProvider);
+    const currentModel = selectedProvider === 'AUTO' ? { id: '', name: 'AUTO' } : models.find(m => m.id === selectedModel);
 
     // Filter commands when user types
     useEffect(() => {
@@ -317,11 +316,24 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
                                             title="Select LLM Provider"
                                             disabled={isLoading}
                                         >
-                                            <span className="font-medium">{currentProvider?.name || 'Provider'}</span>
+                                            <span className="font-medium">{selectedProvider === 'AUTO' ? 'AUTO' : (currentProvider?.name || 'Provider')}</span>
                                             <ChevronDown className="w-3 h-3" />
                                         </button>
                                         {showProviderMenu && (
                                             <div className="absolute bottom-full left-0 mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+                                                <button
+                                                    onClick={() => handleProviderChange('AUTO')}
+                                                    className={cls(
+                                                        "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                        selectedProvider === 'AUTO' ? "bg-accent/50 font-medium" : ""
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span>AUTO</span>
+                                                        <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded font-normal scale-90 origin-left">Optimized</span>
+                                                    </div>
+                                                </button>
+                                                <div className="h-px bg-border my-1" />
                                                 {providers.map(p => (
                                                     <button
                                                         key={p.id}
@@ -344,14 +356,14 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
                                             onClick={() => setShowModelMenu(!showModelMenu)}
                                             className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
                                             title="Select Model"
-                                            disabled={isLoading || !filteredModels.length}
+                                            disabled={isLoading || selectedProvider === 'AUTO' || !filteredModels.length}
                                         >
                                             <span className="font-medium max-w-[120px] truncate">
-                                                {currentModel?.name || 'Auto'}
+                                                {selectedProvider === 'AUTO' ? 'AUTO' : (currentModel?.name || 'Auto')}
                                             </span>
                                             <ChevronDown className="w-3 h-3" />
                                         </button>
-                                        {showModelMenu && (
+                                        {showModelMenu && selectedProvider !== 'AUTO' && (
                                             <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto">
                                                 <button
                                                     onClick={() => handleModelChange('')}
