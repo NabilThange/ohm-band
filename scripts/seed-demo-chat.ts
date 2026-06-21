@@ -229,7 +229,7 @@ A WiFi-enabled temperature monitoring device that displays real-time temperature
                 name: 'ESP32 DevKit',
                 category: 'Microcontroller',
                 quantity: 1,
-                price: 12.99,
+                estimatedCost: 12.99,
                 supplier: 'Amazon',
                 supplier_url: 'https://amazon.com/esp32',
                 specs: { voltage: '3.3V', wifi: 'Yes', bluetooth: 'Yes' }
@@ -239,7 +239,7 @@ A WiFi-enabled temperature monitoring device that displays real-time temperature
                 name: 'DHT22',
                 category: 'Sensor',
                 quantity: 1,
-                price: 9.99,
+                estimatedCost: 9.99,
                 supplier: 'Adafruit',
                 supplier_url: 'https://adafruit.com/dht22',
                 specs: { accuracy: '±0.5°C', range: '-40 to 80°C' }
@@ -249,7 +249,7 @@ A WiFi-enabled temperature monitoring device that displays real-time temperature
                 name: '16x2 I2C LCD',
                 category: 'Display',
                 quantity: 1,
-                price: 8.99,
+                estimatedCost: 8.99,
                 supplier: 'SparkFun',
                 supplier_url: 'https://sparkfun.com/lcd',
                 specs: { interface: 'I2C', backlight: 'Blue' }
@@ -259,7 +259,7 @@ A WiFi-enabled temperature monitoring device that displays real-time temperature
                 name: 'Breadboard',
                 category: 'Hardware',
                 quantity: 1,
-                price: 5.99,
+                estimatedCost: 5.99,
                 supplier: 'Amazon',
                 supplier_url: 'https://amazon.com/breadboard'
             },
@@ -268,7 +268,7 @@ A WiFi-enabled temperature monitoring device that displays real-time temperature
                 name: 'Jumper Wires',
                 category: 'Hardware',
                 quantity: 20,
-                price: 4.99,
+                estimatedCost: 4.99,
                 supplier: 'Amazon',
                 supplier_url: 'https://amazon.com/jumpers'
             }

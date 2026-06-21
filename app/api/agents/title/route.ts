@@ -10,6 +10,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Message and chatId are required" }, { status: 400 });
         }
 
+        // ============================================================
+        // DEMO MODE: Return pre-scripted title without API call
+        // ============================================================
+        if (process.env.DEMO_MODE === 'true') {
+            const normalizedMessage = message.toLowerCase().trim();
+            
+            // Match drone patrol prompt
+            if (normalizedMessage.includes('autonomous drone') && normalizedMessage.includes('farm')) {
+                const title = 'Farm Patrol Autonomous Drone Build';
+                console.log('[DEMO MODE] 🎬 Returning scripted title:', title);
+                
+                // Update chat in DB
+                await ChatService.updateChat(chatId, { title });
+                
+                return NextResponse.json({ title });
+            }
+            
+            console.log('[DEMO MODE] ⚠️ No scripted title found, falling back to real API');
+        }
+
+        // ============================================================
+        // REAL MODE: Normal title generation
+        // ============================================================
         const orchestrator = new AssemblyLineOrchestrator(chatId);
         const title = await orchestrator.generateTitle(message);
 

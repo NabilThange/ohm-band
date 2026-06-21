@@ -14,17 +14,17 @@ interface BOMDrawerProps {
 
 export default function BOMDrawer({ isOpen, onClose, bomData }: BOMDrawerProps) {
     const components = bomData?.components || []
-    const total = bomData?.totalCost || components.reduce((acc, item) => acc + (item.quantity * (item.estimatedCost || 0)), 0)
+    const total = bomData?.summary?.subtotal || components.reduce((acc, item) => acc + (item.lineCost || 0), 0)
 
     // Format BOM as text for clipboard
-    const bomText = components.map(i => `${i.quantity}x ${i.name} - $${((i.quantity * (i.estimatedCost || 0))).toFixed(2)}`).join('\n') + `\n\nTotal: $${total.toFixed(2)}`
+    const bomText = components.map(i => `${i.quantity}x ${i.name} - $${(i.lineCost || 0).toFixed(2)}`).join('\n') + `\n\nTotal: $${total.toFixed(2)}`
 
     return (
         <ToolDrawer
             isOpen={isOpen}
             onClose={onClose}
             title={bomData?.project_name || "Bill of Materials"}
-            description={bomData?.summary || "Review parts list and costs."}
+            description={bomData?.summary ? `$${bomData.summary.subtotal} • Budget headroom: $${bomData.summary.budget_headroom}` : "Review parts list and costs."}
         >
             <div className="space-y-6 h-full flex flex-col">
                 {/* Actions */}
@@ -79,7 +79,7 @@ export default function BOMDrawer({ isOpen, onClose, bomData }: BOMDrawerProps) 
                                                 <div className="text-[10px] text-muted-foreground">{item.partNumber}</div>
                                             </td>
                                             <td className="px-4 py-3 text-center bg-muted/20">{item.quantity}</td>
-                                            <td className="px-4 py-3 text-right font-mono">${((item.quantity * (item.estimatedCost || 0))).toFixed(2)}</td>
+                                            <td className="px-4 py-3 text-right font-mono">${(item.lineCost || 0).toFixed(2)}</td>
                                             <td className="px-2 text-center text-muted-foreground">
                                                 <button className="opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all p-1">
                                                     <Trash2 className="w-3.5 h-3.5" />

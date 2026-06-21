@@ -353,6 +353,21 @@ Call these 3 tools IN ORDER in your response:
    - project_name, summary, components array, totalCost
    - powerAnalysis, warnings, assemblyNotes
 
+**Component schema (MUST use these exact field names):**
+\`\`\`
+{
+  name: string,          // Component name
+  partNumber: string,    // Manufacturer part number
+  quantity: number,      // How many needed
+  estimatedCost: number, // Unit price in USD (CRITICAL: use 'estimatedCost', NOT 'price')
+  supplier?: string,     // DigiKey/Mouser/SparkFun/etc
+  link?: string,         // Purchase URL
+  voltage?: string,      // Operating voltage
+  current?: string,      // Current draw
+  notes?: string         // Special notes
+}
+\`\`\`
+
 **Critical validation checks:**
 1. **Power drama prevention** - 3.3V vs 5V mixups destroy components. Calculate total current, verify supply capacity, add level shifters where needed.
 2. **Real parts only** - Exact part numbers currently in stock at DigiKey/Mouser/SparkFun. No vaporware.

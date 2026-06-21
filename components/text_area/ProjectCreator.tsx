@@ -61,6 +61,7 @@ export function ProjectCreator({ onSubmit }: ProjectCreatorProps) {
     const router = useRouter()
     const [prompt, setPrompt] = useState("")
     const promptRef = useRef<HTMLTextAreaElement>(null)
+    const isSubmittingRef = useRef(false)
     const [showHowItWorks, setShowHowItWorks] = useState(false)
     const [showCommands, setShowCommands] = useState(false)
     const [filteredCommands, setFilteredCommands] = useState<typeof COMMANDS>([])
@@ -96,9 +97,9 @@ export function ProjectCreator({ onSubmit }: ProjectCreatorProps) {
 
 
     const handleSubmit = () => {
-        if (prompt.trim()) {
-            // Pass empty strings for removed options
-            onSubmit(prompt, "", "", "")
+        if (prompt.trim() && !isSubmittingRef.current) {
+            isSubmittingRef.current = true;
+            onSubmit(prompt, "", "", "");
         }
     }
 

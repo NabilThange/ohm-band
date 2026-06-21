@@ -12,7 +12,7 @@ import { ChatPromptInput } from "@/components/shared/ChatPromptInput"
 import OhmLoadingAnimation from "../ui/ohm-loading"
 
 const ChatPane = forwardRef(function ChatPane(
-    { chatId, onChatCreated, initialPrompt, chat, messages = [], isLoading = false, sendMessage }, // Added props
+    { chatId, onChatCreated, initialPrompt, chat, messages = [], isLoading = false, sendMessage, artifacts }, // Added artifacts
     ref,
 ) {
     // Hook Integration REMOVED - using props from parent
@@ -152,7 +152,11 @@ Reflect any changes made during the chat in these documents.`;
 
                                 {messages.map((m) => (
                                     <div key={m.id} className="space-y-2">
-                                        <Message role={m.role} metadata={{ id: m.id, agent_name: m.agent_name, agentId: m.agent_id, ...m.metadata }}>
+                                        <Message 
+                                            role={m.role} 
+                                            metadata={{ id: m.id, agent_name: m.agent_name, agentId: m.agent_id, ...m.metadata }}
+                                            artifacts={artifacts}
+                                        >
                                             {m.content}
                                         </Message>
                                     </div>

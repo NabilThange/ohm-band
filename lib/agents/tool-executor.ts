@@ -471,11 +471,30 @@ export class ToolExecutor {
         try {
             const { id: artifactId, currentVersion } = await this.getOrCreateArtifact('bom', bomData.project_name || 'Bill of Materials');
 
+            // ponytail: Normalize field names - handle legacy 'price' or AI mistakes
+            // Preserve all price-related fields and let the UI's getComponentPrice() handle fallbacks
+            if (bomData.components) {
+                bomData.components = bomData.components.map((c: any) => {
+                    // Don't overwrite existing price fields - preserve unitCost, lineCost, etc.
+                    // Only set estimatedCost if it's explicitly provided
+                    if (c.estimatedCost !== undefined || c.price !== undefined) {
+                        return {
+                            ...c,
+                            estimatedCost: c.estimatedCost ?? c.price ?? c.unitCost ?? c.unit_price ?? 0
+                        };
+                    }
+                    // Keep original component data unchanged if no explicit price normalization needed
+                    return c;
+                });
+            }
+
             // ponytail: Calculate totalCost if missing (agent might forget or use different field name)
+            // Use the same price field resolution logic as BOMCard's getComponentPrice()
             if (!bomData.totalCost && bomData.components) {
-                bomData.totalCost = bomData.components.reduce((sum: number, c: any) => 
-                    sum + (Number(c.estimatedCost || 0) * Number(c.quantity || 1)), 0
-                );
+                bomData.totalCost = bomData.components.reduce((sum: number, c: any) => {
+                    const price = c.estimatedCost ?? c.unitCost ?? c.unit_price ?? c.price ?? 0;
+                    return sum + (Number(price) * Number(c.quantity || 1));
+                }, 0);
             }
 
             const version = await ArtifactService.createVersion({
@@ -517,6 +536,8 @@ export class ToolExecutor {
     ): Promise<{ success: boolean; artifact_id: string; version: number; file_count: number }> {
         try {
             const { id: artifactId, currentVersion, existingVersion } = await this.getOrCreateArtifact('code', 'Generated Code');
+            
+            console.log(`[DEBUG] addCodeFile(${fileData.filename}): artifactId=${artifactId}, currentVersion=${currentVersion}, retry=${retryCount}`);
 
             // Get existing files from the latest version
             const contentJson = existingVersion?.content_json as { files?: any[] } | null;
@@ -558,8 +579,12 @@ export class ToolExecutor {
             if (isDuplicateVersion && retryCount < maxRetries) {
                 console.warn(`[ToolExecutor] ⚠️ Version conflict for ${fileData.filename}, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
 
-                // Wait a bit before retrying (exponential backoff)
-                const delayMs = Math.pow(2, retryCount) * 100; // 100ms, 200ms, 400ms
+                // Exponential backoff with jitter to reduce collision probability
+                const baseDelay = Math.pow(2, retryCount) * 200; // 200ms, 400ms, 800ms
+                const jitter = Math.random() * 100; // Add 0-100ms random jitter
+                const delayMs = baseDelay + jitter;
+                
+                console.log(`[ToolExecutor] Waiting ${Math.round(delayMs)}ms before retry...`);
                 await new Promise(resolve => setTimeout(resolve, delayMs));
 
                 // Retry with fresh version number
@@ -625,8 +650,12 @@ export class ToolExecutor {
             if (isDuplicateVersion && retryCount < maxRetries) {
                 console.warn(`[ToolExecutor] ⚠️ Version conflict for ${fileData.filename}, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
 
-                // Wait a bit before retrying (exponential backoff)
-                const delayMs = Math.pow(2, retryCount) * 100; // 100ms, 200ms, 400ms
+                // Exponential backoff with jitter to reduce collision probability
+                const baseDelay = Math.pow(2, retryCount) * 200; // 200ms, 400ms, 800ms
+                const jitter = Math.random() * 100; // Add 0-100ms random jitter
+                const delayMs = baseDelay + jitter;
+                
+                console.log(`[ToolExecutor] Waiting ${Math.round(delayMs)}ms before retry...`);
                 await new Promise(resolve => setTimeout(resolve, delayMs));
 
                 // Retry with fresh version number

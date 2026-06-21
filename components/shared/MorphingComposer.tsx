@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { XIcon } from "@/components/ui/animated-icons"
 import { Send, Mic, Paperclip } from "lucide-react"
 import { AnimatedTextarea } from "@/components/ui/animated-textarea"
+import { ConversationBar } from "@/components/ui/conversation-bar"
 import ComposerActionsPopover from "@/components/ai_chat/ComposerActionsPopover"
 import { cn as cls } from "@/lib/utils"
 
@@ -55,6 +56,7 @@ export const MorphingComposer = forwardRef<HTMLTextAreaElement, MorphingComposer
         ref
     ) => {
         const textareaRef = useRef<HTMLTextAreaElement>(null)
+        const [isVoiceMode, setIsVoiceMode] = useState(false)
 
         useImperativeHandle(ref, () => textareaRef.current!, [])
 
@@ -184,73 +186,99 @@ export const MorphingComposer = forwardRef<HTMLTextAreaElement, MorphingComposer
                     )}
                 </AnimatePresence>
 
-                {/* Textarea */}
-                <motion.div layout className={variant === "chat" ? "px-4 pt-4 pb-2" : "mb-6"}>
-                    <AnimatedTextarea
-                        ref={textareaRef}
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                        onKeyDown={onKeyDown}
-                        // Only pass static placeholder if no examples are provided, otherwise let AnimatedTextarea handle it
-                        placeholder={placeholderExamples && placeholderExamples.length > 0 ? undefined : placeholder}
-                        placeholderExamples={placeholderExamples}
-                        className={cls(
-                            "min-h-[60px]",
-                            variant === "build" && "font-mono"
-                        )}
-                        rows={variant === "chat" ? 1 : 2}
-                        style={variant === "build" ? { fontFamily: "JetBrains Mono, ui-monospace, monospace" } : undefined}
-                    />
-                </motion.div>
+                {isVoiceMode ? (
+                    <div className="w-full flex items-center justify-center p-2">
+                        <ConversationBar
+                            onTranscriptionComplete={(text) => {
+                                const newValue = value ? `${value} ${text}` : text;
+                                onChange(newValue);
+                                setIsVoiceMode(false);
+                                setTimeout(() => {
+                                    textareaRef.current?.focus();
+                                }, 100);
+                            }}
+                            onClose={() => {
+                                setIsVoiceMode(false);
+                                setTimeout(() => {
+                                    textareaRef.current?.focus();
+                                }, 100);
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <>
+                        {/* Textarea */}
+                        <motion.div layout className={variant === "chat" ? "px-4 pt-4 pb-2" : "mb-6"}>
+                            <AnimatedTextarea
+                                ref={textareaRef}
+                                value={value}
+                                onChange={(e) => onChange(e.target.value)}
+                                onKeyDown={onKeyDown}
+                                // Only pass static placeholder if no examples are provided, otherwise let AnimatedTextarea handle it
+                                placeholder={placeholderExamples && placeholderExamples.length > 0 ? undefined : placeholder}
+                                placeholderExamples={placeholderExamples}
+                                className={cls(
+                                    "min-h-[60px]",
+                                    variant === "build" && "font-mono"
+                                )}
+                                rows={variant === "chat" ? 1 : 2}
+                                style={variant === "build" ? { fontFamily: "JetBrains Mono, ui-monospace, monospace" } : undefined}
+                            />
+                        </motion.div>
 
-                {/* Bottom toolbar */}
-                <motion.div
-                    layout
-                    className={cls(
-                        "flex items-center justify-between",
-                        variant === "chat" ? "px-3 pb-3" : ""
-                    )}
-                >
-                    <div className="flex items-center gap-3">
-                        <ComposerActionsPopover>
+                        {/* Bottom toolbar */}
+                        <motion.div
+                            layout
+                            className={cls(
+                                "flex items-center justify-between",
+                                variant === "chat" ? "px-3 pb-3" : ""
+                            )}
+                        >
+                            <div className="flex items-center gap-3">
+                                <ComposerActionsPopover>
+                                    <button
+                                        type="button"
+                                        className="text-muted-foreground hover:text-foreground transition"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Paperclip size={18} />
+                                    </button>
+                                </ComposerActionsPopover>
+                                <button
+                                    type="button"
+                                    className="text-muted-foreground hover:text-foreground transition"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsVoiceMode(true);
+                                    }}
+                                >
+                                    <Mic size={18} />
+                                </button>
+                            </div>
                             <button
                                 type="button"
-                                className="text-muted-foreground hover:text-foreground transition"
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onSubmit()
+                                }}
+                                disabled={!hasContent || disabled}
+                                className={cls(
+                                    "transition disabled:opacity-50 disabled:cursor-not-allowed",
+                                    variant === "chat"
+                                        ? cls(
+                                            "inline-flex shrink-0 items-center justify-center rounded-full p-2.5",
+                                            hasContent
+                                                ? "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                                                : "bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600"
+                                        )
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
                             >
-                                <Paperclip size={18} />
+                                <Send size={18} />
                             </button>
-                        </ComposerActionsPopover>
-                        <button
-                            type="button"
-                            className="text-muted-foreground hover:text-foreground transition"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <Mic size={18} />
-                        </button>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onSubmit()
-                        }}
-                        disabled={!hasContent || disabled}
-                        className={cls(
-                            "transition disabled:opacity-50 disabled:cursor-not-allowed",
-                            variant === "chat"
-                                ? cls(
-                                    "inline-flex shrink-0 items-center justify-center rounded-full p-2.5",
-                                    hasContent
-                                        ? "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-                                        : "bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600"
-                                )
-                                : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        <Send size={18} />
-                    </button>
-                </motion.div>
+                        </motion.div>
+                    </>
+                )}
             </motion.div>
         )
     }

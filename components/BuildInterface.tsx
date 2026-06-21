@@ -144,6 +144,54 @@ export default function BuildInterface({ initialPrompt, projectStyle, onBack }: 
 
     }, [messages]);
 
+    // Fetch artifacts from database on mount (in addition to parsing messages)
+    useEffect(() => {
+        const fetchArtifacts = async () => {
+            if (!messages.length) return;
+            
+            // Extract chatId from messages (messages are linked to a chat)
+            // For now, we'll use a convention: chatId is in metadata or we derive it
+            // If your system doesn't store chatId in messages, you'll need to pass it as a prop
+            const chatId = (messages[0] as any)?.chat_id || null;
+            
+            if (!chatId) {
+                console.log('[BuildInterface] No chatId found, skipping artifact fetch');
+                return;
+            }
+
+            console.log('[BuildInterface] Fetching artifacts from database for chat:', chatId);
+
+            try {
+                // Fetch code artifact
+                const codeRes = await fetch(`/api/artifacts/${chatId}?type=code`);
+                if (codeRes.ok) {
+                    const codeArtifact = await codeRes.json();
+                    if (codeArtifact.data?.files) {
+                        console.log(`[BuildInterface] ✅ Loaded ${codeArtifact.data.files.length} code files from database`);
+                        setCodeData(codeArtifact.data);
+                    }
+                }
+
+                // Fetch BOM artifact
+                const bomRes = await fetch(`/api/artifacts/${chatId}?type=bom`);
+                if (bomRes.ok) {
+                    const bomArtifact = await bomRes.json();
+                    if (bomArtifact.data) {
+                        console.log('[BuildInterface] ✅ Loaded BOM from database');
+                        setBomData(bomArtifact.data);
+                    }
+                }
+
+                // You can add more artifact types here (wiring, enclosure, etc.)
+
+            } catch (error) {
+                console.error('[BuildInterface] Failed to fetch artifacts:', error);
+            }
+        };
+
+        fetchArtifacts();
+    }, [messages.length]); // Re-run when messages change (indicates new data might be available)
+
     // Initial AI greeting
     useEffect(() => {
         const timer = setTimeout(() => {

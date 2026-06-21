@@ -289,15 +289,14 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                 // Set legacy state for backwards compatibility
                 if (newArtifacts.bom?.version?.content_json) {
-                    // ponytail: Map DB field names (component, unit_price) to UI field names (name, estimatedCost)
+                    // ponytail: Preserve all price fields - let BOMCard's getComponentPrice() handle resolution
                     const bomContent = newArtifacts.bom.version.content_json;
                     const mappedBom = {
                         ...bomContent,
                         components: bomContent.components?.map(c => ({
-                            ...c,
-                            name: c.component || c.name, // Support both field names
-                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0, // ?? handles null/undefined
-                            partNumber: c.partNumber || '' // Ensure partNumber exists
+                            ...c, // Keep ALL fields including unitCost, lineCost, etc.
+                            name: c.component || c.name // Support both field names
+                            // Don't override price fields
                         })) || []
                     };
                     setBomData(mappedBom);
@@ -398,15 +397,14 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                         // Update legacy state
                         if (artifact.type === 'bom' && updated?.version?.content_json) {
-                            // ponytail: Map DB field names to UI field names (same as initial load)
+                            // ponytail: Preserve all price fields - let BOMCard's getComponentPrice() handle resolution
                             const bomContent = updated.version.content_json;
                             const mappedBom = {
                                 ...bomContent,
                                 components: bomContent.components?.map(c => ({
-                                    ...c,
-                                    name: c.component || c.name,
-                                    estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
-                                    partNumber: c.partNumber || ''
+                                    ...c, // Keep ALL fields including unitCost, lineCost, etc.
+                                    name: c.component || c.name // Support both field names
+                                    // Don't override price fields
                                 })) || []
                             };
                             setBomData(mappedBom);
@@ -957,6 +955,8 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
                             messages={messages}
                             isLoading={chatLoading}
                             sendMessage={sendMessage}
+                            // Pass artifacts for inline components
+                            artifacts={artifacts}
                         />
 
                     </main>
