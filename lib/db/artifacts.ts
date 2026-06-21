@@ -33,12 +33,11 @@ export const ArtifactService = {
 
         if (error) throw error
 
-        // Update the parent artifact to point to this new version count if needed
-        // (Actual pointer update usually logic driven, for now we just insert)
-
-        // Automatically update the current_version counter on the parent artifact
-        // @ts-ignore
-        await supabase.rpc('increment_artifact_version', { artifact_id: version.artifact_id })
+        // Update the parent artifact's current_version counter
+        await supabase
+            .from('artifacts')
+            .update({ current_version: version.version_number })
+            .eq('id', version.artifact_id);
 
         return data
     },
@@ -69,5 +68,38 @@ export const ArtifactService = {
             .single()
 
         return { artifact, version }
+    },
+
+    /**
+     * Get artifact by chat ID and type (returns artifact record only)
+     */
+    async getArtifactByChatAndType(chatId: string, type: ArtifactType) {
+        const { data, error } = await supabase
+            .from('artifacts')
+            .select('*')
+            .eq('chat_id', chatId)
+            .eq('type', type)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (error) throw error
+        return data
+    },
+
+    /**
+     * Get the latest version of an artifact by artifact ID
+     */
+    async getLatestVersion(artifactId: string) {
+        const { data, error } = await supabase
+            .from('artifact_versions')
+            .select('*')
+            .eq('artifact_id', artifactId)
+            .order('version_number', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (error) throw error
+        return data
     }
 }

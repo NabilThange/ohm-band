@@ -15,6 +15,13 @@ import {
 import { cn } from '@/lib/utils'
 
 /**
+ * Resolves price/cost field using multiple fallbacks
+ */
+const getComponentPrice = (component) => {
+    return component.estimatedCost ?? component.unitCost ?? component.unit_price ?? component.price ?? 0;
+}
+
+/**
  * Creates and downloads a CSV file from BOM data
  */
 const exportToCSV = (data) => {
@@ -24,7 +31,7 @@ const exportToCSV = (data) => {
     const rows = data.components.map(c => [
         c.name,
         c.quantity,
-        c.estimatedCost || 0,
+        getComponentPrice(c),
         c.partNumber || "",
         c.supplier || "",
         c.link || "",
@@ -50,7 +57,7 @@ const exportToCSV = (data) => {
 export default function BOMCard({ data }) {
     if (!data) return null
 
-    const totalCost = data.totalCost || data.components.reduce((sum, c) => sum + (Number(c.estimatedCost || 0) * Number(c.quantity || 1)), 0)
+    const totalCost = data.totalCost || data.components.reduce((sum, c) => sum + (Number(getComponentPrice(c)) * Number(c.quantity || 1)), 0)
 
     return (
         <motion.div
@@ -112,7 +119,7 @@ export default function BOMCard({ data }) {
                                         {component.quantity}x
                                     </td>
                                     <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100 font-mono">
-                                        ${(component.estimatedCost || 0).toFixed(2)}
+                                        ${getComponentPrice(component).toFixed(2)}
                                     </td>
                                     <td className="px-5 py-3 text-right">
                                         {component.link ? (

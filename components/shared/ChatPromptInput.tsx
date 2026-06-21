@@ -5,6 +5,7 @@ import { XIcon } from '@/components/ui/animated-icons'
 import { Mic, Paperclip, Send, ChevronDown } from 'lucide-react';
 import ComposerActionsPopover from '@/components/ai_chat/ComposerActionsPopover';
 import { cn as cls } from '@/lib/utils';
+import { ConversationBar } from '@/components/ui/conversation-bar';
 
 const COMMANDS = [
     { command: "/update-context", description: "Refresh MVP, PRD, and Context from chat history", icon: "📝" },
@@ -51,6 +52,9 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
     const [activeIndex, setActiveIndex] = useState(0);
     const [helpOpen, setHelpOpen] = useState(false);
     const [placeholder, setPlaceholder] = useState(getRandomPlaceholder());
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isVoiceMode, setIsVoiceMode] = useState(false);
+    const isSubmittingRef = useRef(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Provider/Model state
@@ -147,11 +151,20 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
     }, [message]);
 
     const handleSubmit = async () => {
-        if (!message.trim() || isLoading) return;
+        if (!message.trim() || isLoading || isSubmittingRef.current) return;
 
+        isSubmittingRef.current = true;
+        setIsSubmitting(true);
         const userMessage = message.trim();
         setMessage('');
-        onSendMessage(userMessage);
+        try {
+            await onSendMessage(userMessage);
+        } catch (e) {
+            console.error('[ChatPromptInput] Send message failed:', e);
+        } finally {
+            isSubmittingRef.current = false;
+            setIsSubmitting(false);
+        }
     };
 
     const selectCommand = (cmd: string) => {
@@ -292,151 +305,171 @@ export function ChatPromptInput({ onSendMessage, isLoading = false, chatId }: Ch
                 style={{ viewTransitionName: 'prompt-input' } as React.CSSProperties}
             >
                 <div className="mx-auto px-4 pt-0 pb-4" style={{ maxWidth: '800px' }}>
-                    <div className="relative bg-card border border-[#3e3e38] rounded-lg hover:border-primary focus-within:border-primary transition-colors p-4">
-                        <div className="flex flex-col">
-                            <textarea
-                                ref={textareaRef}
-                                value={message}
-                                onChange={(e) => setMessage(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                onFocus={handleFocus}
-                                onBlur={handleBlur}
-                                placeholder={placeholder}
-                                rows={1}
-                                className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-mono resize-none outline-none border-none focus:outline-none focus:ring-0 mb-2 min-h-[28px] px-2"
-                                disabled={isLoading}
-                            />
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    {/* Provider Selector */}
-                                    <div className="relative" ref={providerMenuRef}>
-                                        <button
-                                            onClick={() => setShowProviderMenu(!showProviderMenu)}
-                                            className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
-                                            title="Select LLM Provider"
-                                            disabled={isLoading}
-                                        >
-                                            <span className="font-medium">{selectedProvider === 'AUTO' ? 'AUTO' : (currentProvider?.name || 'Provider')}</span>
-                                            <ChevronDown className="w-3 h-3" />
-                                        </button>
-                                        {showProviderMenu && (
-                                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
-                                                <button
-                                                    onClick={() => handleProviderChange('AUTO')}
-                                                    className={cls(
-                                                        "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
-                                                        selectedProvider === 'AUTO' ? "bg-accent/50 font-medium" : ""
-                                                    )}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <span>AUTO</span>
-                                                        <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded font-normal scale-90 origin-left">Optimized</span>
-                                                    </div>
-                                                </button>
-                                                <div className="h-px bg-border my-1" />
-                                                {providers.map(p => (
+                    {isVoiceMode ? (
+                        <ConversationBar
+                            onTranscriptionComplete={(text) => {
+                                const newValue = message ? `${message} ${text}` : text;
+                                setMessage(newValue);
+                                setIsVoiceMode(false);
+                                setTimeout(() => {
+                                    textareaRef.current?.focus();
+                                }, 100);
+                            }}
+                            onClose={() => {
+                                setIsVoiceMode(false);
+                                setTimeout(() => {
+                                    textareaRef.current?.focus();
+                                }, 100);
+                            }}
+                        />
+                    ) : (
+                        <div className="relative bg-card border border-[#3e3e38] rounded-lg hover:border-primary focus-within:border-primary transition-colors p-4">
+                            <div className="flex flex-col">
+                                <textarea
+                                    ref={textareaRef}
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                    placeholder={placeholder}
+                                    rows={1}
+                                    className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-mono resize-none outline-none border-none focus:outline-none focus:ring-0 mb-2 min-h-[28px] px-2"
+                                    disabled={isLoading || isSubmitting}
+                                />
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        {/* Provider Selector */}
+                                        <div className="relative" ref={providerMenuRef}>
+                                            <button
+                                                onClick={() => setShowProviderMenu(!showProviderMenu)}
+                                                className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
+                                                title="Select LLM Provider"
+                                                disabled={isLoading || isSubmitting}
+                                            >
+                                                <span className="font-medium">{selectedProvider === 'AUTO' ? 'AUTO' : (currentProvider?.name || 'Provider')}</span>
+                                                <ChevronDown className="w-3 h-3" />
+                                            </button>
+                                            {showProviderMenu && (
+                                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
                                                     <button
-                                                        key={p.id}
-                                                        onClick={() => handleProviderChange(p.id)}
+                                                        onClick={() => handleProviderChange('AUTO')}
                                                         className={cls(
                                                             "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
-                                                            selectedProvider === p.id ? "bg-accent/50 font-medium" : ""
+                                                            selectedProvider === 'AUTO' ? "bg-accent/50 font-medium" : ""
                                                         )}
                                                     >
-                                                        {p.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Model Selector */}
-                                    <div className="relative" ref={modelMenuRef}>
-                                        <button
-                                            onClick={() => setShowModelMenu(!showModelMenu)}
-                                            className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
-                                            title="Select Model"
-                                            disabled={isLoading || selectedProvider === 'AUTO' || !filteredModels.length}
-                                        >
-                                            <span className="font-medium max-w-[120px] truncate">
-                                                {selectedProvider === 'AUTO' ? 'AUTO' : (currentModel?.name || 'Auto')}
-                                            </span>
-                                            <ChevronDown className="w-3 h-3" />
-                                        </button>
-                                        {showModelMenu && selectedProvider !== 'AUTO' && (
-                                            <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto">
-                                                <button
-                                                    onClick={() => handleModelChange('')}
-                                                    className={cls(
-                                                        "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
-                                                        !selectedModel ? "bg-accent/50 font-medium" : ""
-                                                    )}
-                                                >
-                                                    Auto-select (Default)
-                                                </button>
-                                                {filteredModels.map(m => (
-                                                    <button
-                                                        key={m.id}
-                                                        onClick={() => handleModelChange(m.id)}
-                                                        className={cls(
-                                                            "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
-                                                            selectedModel === m.id ? "bg-accent/50 font-medium" : ""
-                                                        )}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="truncate">{m.name}</span>
-                                                            {m.pricing.free && (
-                                                                <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded">Free</span>
-                                                            )}
+                                                        <div className="flex items-center gap-2">
+                                                            <span>AUTO</span>
+                                                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded font-normal scale-90 origin-left">Optimized</span>
                                                         </div>
                                                     </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                                    <div className="h-px bg-border my-1" />
+                                                    {providers.map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            onClick={() => handleProviderChange(p.id)}
+                                                            className={cls(
+                                                                "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                                selectedProvider === p.id ? "bg-accent/50 font-medium" : ""
+                                                            )}
+                                                        >
+                                                            {p.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    <div className="w-px h-4 bg-border" />
+                                        {/* Model Selector */}
+                                        <div className="relative" ref={modelMenuRef}>
+                                            <button
+                                                onClick={() => setShowModelMenu(!showModelMenu)}
+                                                className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-1"
+                                                title="Select Model"
+                                                disabled={isLoading || isSubmitting || selectedProvider === 'AUTO' || !filteredModels.length}
+                                            >
+                                                <span className="font-medium max-w-[120px] truncate">
+                                                    {selectedProvider === 'AUTO' ? 'AUTO' : (currentModel?.name || 'Auto')}
+                                                </span>
+                                                <ChevronDown className="w-3 h-3" />
+                                            </button>
+                                            {showModelMenu && selectedProvider !== 'AUTO' && (
+                                                <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto">
+                                                    <button
+                                                        onClick={() => handleModelChange('')}
+                                                        className={cls(
+                                                            "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                            !selectedModel ? "bg-accent/50 font-medium" : ""
+                                                        )}
+                                                    >
+                                                        Auto-select (Default)
+                                                    </button>
+                                                    {filteredModels.map(m => (
+                                                        <button
+                                                            key={m.id}
+                                                            onClick={() => handleModelChange(m.id)}
+                                                            className={cls(
+                                                                "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                                                                selectedModel === m.id ? "bg-accent/50 font-medium" : ""
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="truncate">{m.name}</span>
+                                                                {m.pricing.free && (
+                                                                    <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded">Free</span>
+                                                                )}
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    <ComposerActionsPopover>
+                                        <div className="w-px h-4 bg-border" />
+
+                                        <ComposerActionsPopover>
+                                            <button
+                                                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+                                                title="Attach files"
+                                                disabled={isLoading || isSubmitting}
+                                            >
+                                                <Paperclip className="w-5 h-5" />
+                                            </button>
+                                        </ComposerActionsPopover>
                                         <button
                                             className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                                            title="Attach files"
-                                            disabled={isLoading}
+                                            title="Voice input"
+                                            disabled={isLoading || isSubmitting}
+                                            onClick={() => setIsVoiceMode(true)}
                                         >
-                                            <Paperclip className="w-5 h-5" />
+                                            <Mic className="w-5 h-5" />
                                         </button>
-                                    </ComposerActionsPopover>
+                                    </div>
                                     <button
-                                        className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                                        title="Voice input"
-                                        disabled={isLoading}
+                                        onClick={handleSubmit}
+                                        disabled={!message.trim() || isLoading || isSubmitting}
+                                        className={cls(
+                                            "rounded-lg p-2 transition-colors inline-flex items-center justify-center",
+                                            message.trim() && !isLoading && !isSubmitting
+                                                ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                                                : "bg-primary/20 text-primary/40 cursor-not-allowed"
+                                        )}
+                                        title="Send message"
                                     >
-                                        <Mic className="w-5 h-5" />
+                                        {isLoading || isSubmitting ? (
+                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        ) : (
+                                            <Send className="w-4 h-4" />
+                                        )}
                                     </button>
                                 </div>
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={!message.trim() || isLoading}
-                                    className={cls(
-                                        "rounded-lg p-2 transition-colors inline-flex items-center justify-center",
-                                        message.trim() && !isLoading
-                                            ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                                            : "bg-primary/20 text-primary/40 cursor-not-allowed"
-                                    )}
-                                    title="Send message"
-                                >
-                                    {isLoading ? (
-                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                    ) : (
-                                        <Send className="w-4 h-4" />
-                                    )}
-                                </button>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </>

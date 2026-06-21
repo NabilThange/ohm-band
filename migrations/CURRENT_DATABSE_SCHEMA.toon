@@ -1,20 +1,4 @@
-[243]{table_schema,table_name,column_name,ordinal_position,data_type,character_maximum_length,is_nullable,column_default,is_primary_key,foreign_table_schema,foreign_table_name,foreign_column_name,fk_constraint_name}:
-  public,agent_executions,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,agent_executions,chat_id,2,uuid,null,YES,null,NO,public,chats,id,agent_executions_chat_id_fkey
-  public,agent_executions,message_id,3,uuid,null,YES,null,NO,public,messages,id,agent_executions_message_id_fkey
-  public,agent_executions,user_id,4,uuid,null,YES,null,NO,null,null,null,null
-  public,agent_executions,agent_name,5,text,null,NO,null,NO,null,null,null,null
-  public,agent_executions,agent_model,6,text,null,NO,null,NO,null,null,null,null
-  public,agent_executions,status,7,text,null,YES,null,NO,null,null,null,null
-  public,agent_executions,started_at,8,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,agent_executions,completed_at,9,timestamp with time zone,null,YES,null,NO,null,null,null,null
-  public,agent_executions,duration_ms,10,integer,null,YES,null,NO,null,null,null,null
-  public,agent_executions,input_tokens,11,integer,null,YES,null,NO,null,null,null,null
-  public,agent_executions,output_tokens,12,integer,null,YES,null,NO,null,null,null,null
-  public,agent_executions,cost_usd,13,numeric,null,YES,null,NO,null,null,null,null
-  public,agent_executions,error_message,14,text,null,YES,null,NO,null,null,null,null
-  public,agent_executions,input_payload,15,jsonb,null,YES,null,NO,null,null,null,null
-  public,agent_executions,output_payload,16,jsonb,null,YES,null,NO,null,null,null,null
+[143]{table_schema,table_name,column_name,ordinal_position,data_type,character_maximum_length,is_nullable,column_default,is_primary_key,foreign_table_schema,foreign_table_name,foreign_column_name,fk_constraint_name}:
   public,approval_gates,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,approval_gates,chat_id,2,uuid,null,NO,null,NO,public,chats,id,approval_gates_chat_id_fkey
   public,approval_gates,gate_type,3,character varying,50,NO,null,NO,null,null,null,null
@@ -22,15 +6,6 @@
   public,approval_gates,resolved_band_message_id,5,character varying,null,YES,null,NO,null,null,null,null
   public,approval_gates,created_at,6,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO,null,null,null,null
   public,approval_gates,updated_at,7,timestamp with time zone,null,NO,"timezone('utc'::text, now())",NO,null,null,null,null
-  public,artifact_dependencies,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,artifact_dependencies,dependent_id,2,uuid,null,YES,null,NO,public,artifacts,id,artifact_dependencies_dependent_id_fkey
-  public,artifact_dependencies,dependency_id,3,uuid,null,YES,null,NO,public,artifacts,id,artifact_dependencies_dependency_id_fkey
-  public,artifact_dependencies,rel_type,4,text,null,YES,"'references'::text",NO,null,null,null,null
-  public,artifact_sections,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,artifact_sections,artifact_version_id,2,uuid,null,YES,null,NO,public,artifact_versions,id,artifact_sections_artifact_version_id_fkey
-  public,artifact_sections,section_name,3,text,null,NO,null,NO,null,null,null,null
-  public,artifact_sections,section_order,4,integer,null,NO,null,NO,null,null,null,null
-  public,artifact_sections,content,5,text,null,YES,null,NO,null,null,null,null
   public,artifact_versions,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,artifact_versions,artifact_id,2,uuid,null,YES,null,NO,public,artifacts,id,artifact_versions_artifact_id_fkey
   public,artifact_versions,version_number,3,integer,null,NO,null,NO,null,null,null,null
@@ -38,9 +13,6 @@
   public,artifact_versions,content_json,5,jsonb,null,YES,null,NO,null,null,null,null
   public,artifact_versions,filename,6,text,null,YES,null,NO,null,null,null,null
   public,artifact_versions,language,7,text,null,YES,null,NO,null,null,null,null
-  public,artifact_versions,file_path,8,text,null,YES,null,NO,null,null,null,null
-  public,artifact_versions,diagram_svg,9,text,null,YES,null,NO,null,null,null,null
-  public,artifact_versions,diagram_metadata,10,jsonb,null,YES,null,NO,null,null,null,null
   public,artifact_versions,change_summary,11,text,null,YES,null,NO,null,null,null,null
   public,artifact_versions,parent_version_id,12,uuid,null,YES,null,NO,public,artifact_versions,id,artifact_versions_parent_version_id_fkey
   public,artifact_versions,created_by_message_id,13,uuid,null,YES,null,NO,public,messages,id,artifact_versions_created_by_message_id_fkey
@@ -59,23 +31,6 @@
   public,artifacts,metadata,7,jsonb,null,YES,"'{}'::jsonb",NO,null,null,null,null
   public,artifacts,created_at,8,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,artifacts,updated_at,9,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,attachments,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,attachments,chat_id,2,uuid,null,YES,null,NO,public,chats,id,attachments_chat_id_fkey
-  public,attachments,message_id,3,uuid,null,YES,null,NO,public,messages,id,attachments_message_id_fkey
-  public,attachments,filename,4,text,null,NO,null,NO,null,null,null,null
-  public,attachments,storage_path,5,text,null,NO,null,NO,null,null,null,null
-  public,attachments,file_type,6,text,null,YES,null,NO,null,null,null,null
-  public,attachments,public_url,7,text,null,YES,null,NO,null,null,null,null
-  public,attachments,metadata,8,jsonb,null,YES,null,NO,null,null,null,null
-  public,attachments,created_at,9,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,budget_snapshots,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,budget_snapshots,project_id,2,uuid,null,YES,null,NO,public,projects,id,budget_snapshots_project_id_fkey
-  public,budget_snapshots,created_at,3,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,budget_snapshots,target_budget,4,numeric,null,YES,null,NO,null,null,null,null
-  public,budget_snapshots,actual_cost,5,numeric,null,YES,null,NO,null,null,null,null
-  public,budget_snapshots,budget_range,6,text,null,YES,null,NO,null,null,null,null
-  public,budget_snapshots,trigger_event,7,text,null,YES,null,NO,null,null,null,null
-  public,budget_snapshots,suggestions,8,jsonb,null,YES,null,NO,null,null,null,null
   public,chat_sessions,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,chat_sessions,chat_id,2,uuid,null,YES,null,NO,public,chats,id,chat_sessions_chat_id_fkey
   public,chat_sessions,current_agent,3,text,null,YES,null,NO,null,null,null,null
@@ -102,16 +57,7 @@
   public,chats,share_token,7,text,null,YES,null,NO,null,null,null,null
   public,chats,last_message_at,8,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,chats,created_at,9,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,circuit_verifications,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,circuit_verifications,chat_id,2,uuid,null,YES,null,NO,public,chats,id,circuit_verifications_chat_id_fkey
-  public,circuit_verifications,project_id,3,uuid,null,YES,null,NO,public,projects,id,circuit_verifications_project_id_fkey
-  public,circuit_verifications,image_url,4,text,null,NO,null,NO,null,null,null,null
-  public,circuit_verifications,status,5,text,null,YES,null,NO,null,null,null,null
-  public,circuit_verifications,confidence,6,text,null,YES,null,NO,null,null,null,null
-  public,circuit_verifications,components_detected,7,jsonb,null,YES,null,NO,null,null,null,null
-  public,circuit_verifications,issues,8,ARRAY,null,YES,null,NO,null,null,null,null
-  public,circuit_verifications,suggestions,9,ARRAY,null,YES,null,NO,null,null,null,null
-  public,circuit_verifications,created_at,10,timestamp with time zone,null,YES,now(),NO,null,null,null,null
+  public,chats,updated_at,10,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,component_templates,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,component_templates,name,2,text,null,NO,null,NO,null,null,null,null
   public,component_templates,category,3,text,null,NO,null,NO,null,null,null,null
@@ -139,14 +85,6 @@
   public,connections,validation_result,11,jsonb,null,YES,"'{\"status\": \"pending\"}'::jsonb",NO,null,null,null,null
   public,connections,notes,12,text,null,YES,null,NO,null,null,null,null
   public,connections,created_at,13,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,datasheet_analyses,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,datasheet_analyses,chat_id,2,uuid,null,YES,null,NO,public,chats,id,datasheet_analyses_chat_id_fkey
-  public,datasheet_analyses,file_url,3,text,null,NO,null,NO,null,null,null,null
-  public,datasheet_analyses,component_name,4,text,null,YES,null,NO,null,null,null,null
-  public,datasheet_analyses,key_specs,5,jsonb,null,YES,null,NO,null,null,null,null
-  public,datasheet_analyses,pin_mappings,6,jsonb,null,YES,null,NO,null,null,null,null
-  public,datasheet_analyses,extraction_status,7,text,null,YES,"'pending'::text",NO,null,null,null,null
-  public,datasheet_analyses,created_at,8,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,diagram_cache,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,diagram_cache,circuit_hash,2,text,null,NO,null,NO,null,null,null,null
   public,diagram_cache,fritzing_url,3,text,null,NO,null,NO,null,null,null,null
@@ -161,32 +99,15 @@
   public,diagram_queue,created_at,6,timestamp without time zone,null,YES,now(),NO,null,null,null,null
   public,diagram_queue,processed_at,7,timestamp without time zone,null,YES,null,NO,null,null,null,null
   public,diagram_queue,error_message,8,text,null,YES,null,NO,null,null,null,null
-  public,error_logs,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,error_logs,timestamp,2,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,error_logs,user_id,3,uuid,null,YES,null,NO,null,null,null,null
-  public,error_logs,chat_id,4,uuid,null,YES,null,NO,public,chats,id,error_logs_chat_id_fkey
-  public,error_logs,error_type,5,text,null,YES,null,NO,null,null,null,null
-  public,error_logs,error_message,6,text,null,YES,null,NO,null,null,null,null
-  public,error_logs,stack_trace,7,text,null,YES,null,NO,null,null,null,null
-  public,error_logs,request_payload,8,jsonb,null,YES,null,NO,null,null,null,null
-  public,message_feedback,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
-  public,message_feedback,message_id,2,uuid,null,YES,null,NO,public,messages,id,message_feedback_message_id_fkey
-  public,message_feedback,user_id,3,uuid,null,YES,null,NO,null,null,null,null
-  public,message_feedback,rating,4,integer,null,YES,null,NO,null,null,null,null
-  public,message_feedback,feedback_text,5,text,null,YES,null,NO,null,null,null,null
-  public,message_feedback,issue_category,6,text,null,YES,null,NO,null,null,null,null
-  public,message_feedback,created_at,7,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,messages,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,messages,chat_id,2,uuid,null,YES,null,NO,public,chats,id,messages_chat_id_fkey
   public,messages,sequence_number,3,integer,null,NO,null,NO,null,null,null,null
   public,messages,role,4,text,null,NO,null,NO,null,null,null,null
   public,messages,content,5,text,null,NO,null,NO,null,null,null,null
   public,messages,agent_name,6,text,null,YES,null,NO,null,null,null,null
-  public,messages,agent_model,7,text,null,YES,null,NO,null,null,null,null
   public,messages,intent,8,text,null,YES,null,NO,null,null,null,null
   public,messages,input_tokens,9,integer,null,YES,"0",NO,null,null,null,null
   public,messages,output_tokens,10,integer,null,YES,"0",NO,null,null,null,null
-  public,messages,created_artifact_ids,11,ARRAY,null,YES,"'{}'::uuid[]",NO,null,null,null,null
   public,messages,created_at,12,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,messages,content_search,13,tsvector,null,YES,null,NO,null,null,null,null
   public,messages,agent_id,14,text,null,YES,null,NO,null,null,null,null
@@ -208,23 +129,12 @@
   public,parts,usage_notes,15,ARRAY,null,YES,null,NO,null,null,null,null
   public,parts,specs,16,jsonb,null,YES,"'{}'::jsonb",NO,null,null,null,null
   public,parts,created_at,17,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,profiles,id,1,uuid,null,NO,null,YES,null,null,null,null
-  public,profiles,created_at,2,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,profiles,updated_at,3,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,profiles,username,4,text,null,YES,null,NO,null,null,null,null
-  public,profiles,full_name,5,text,null,YES,null,NO,null,null,null,null
-  public,profiles,avatar_url,6,text,null,YES,null,NO,null,null,null,null
-  public,profiles,ai_preferences,7,jsonb,null,YES,"'{\"preferred_units\": \"metric\", \"show_beginner_tips\": true, \"default_budget_range\": \"standard\", \"preferred_code_style\": \"modular\", \"auto_add_level_shifters\": true}'::jsonb",NO,null,null,null,null
-  public,profiles,total_chats,8,integer,null,YES,"0",NO,null,null,null,null
-  public,profiles,total_projects,9,integer,null,YES,"0",NO,null,null,null,null
-  public,profiles,subscription_tier,10,text,null,YES,"'free'::text",NO,null,null,null,null
   public,projects,id,1,uuid,null,NO,gen_random_uuid(),YES,null,null,null,null
   public,projects,user_id,2,uuid,null,YES,null,NO,null,null,null,null
   public,projects,name,3,text,null,NO,null,NO,null,null,null,null
   public,projects,description,4,text,null,YES,null,NO,null,null,null,null
   public,projects,category,5,text,null,YES,null,NO,null,null,null,null
   public,projects,goal,6,text,null,YES,null,NO,null,null,null,null
-  public,projects,location,7,text,null,YES,null,NO,null,null,null,null
   public,projects,target_budget,8,numeric,null,YES,null,NO,null,null,null,null
   public,projects,current_estimated_cost,9,numeric,null,YES,null,NO,null,null,null,null
   public,projects,status,10,text,null,YES,"'draft'::text",NO,null,null,null,null
@@ -232,13 +142,3 @@
   public,projects,metadata,12,jsonb,null,YES,"'{}'::jsonb",NO,null,null,null,null
   public,projects,created_at,13,timestamp with time zone,null,YES,now(),NO,null,null,null,null
   public,projects,updated_at,14,timestamp with time zone,null,YES,now(),NO,null,null,null,null
-  public,user_quotas,user_id,1,uuid,null,NO,null,YES,null,null,null,null
-  public,user_quotas,messages_this_month,2,integer,null,YES,"0",NO,null,null,null,null
-  public,user_quotas,messages_limit,3,integer,null,YES,"100",NO,null,null,null,null
-  public,user_quotas,projects_this_month,4,integer,null,YES,"0",NO,null,null,null,null
-  public,user_quotas,projects_limit,5,integer,null,YES,"3",NO,null,null,null,null
-  public,user_quotas,tokens_used_this_month,6,integer,null,YES,"0",NO,null,null,null,null
-  public,user_quotas,tokens_limit,7,integer,null,YES,"100000",NO,null,null,null,null
-  public,user_quotas,cost_this_month,8,numeric,null,YES,"0.0000",NO,null,null,null,null
-  public,user_quotas,quota_reset_at,9,timestamp with time zone,null,YES,"(now() + '1 mon'::interval)",NO,null,null,null,null
-  public,user_quotas,updated_at,10,timestamp with time zone,null,YES,now(),NO,null,null,null,null

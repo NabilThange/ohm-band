@@ -1,19 +1,21 @@
 
 export interface BOMComponent {
+    id?: string;
     name: string;
     partNumber: string;
+    category?: string;
     quantity: number;
-    voltage?: string;
-    current?: string;
-    estimatedCost?: number;
+    unitCost?: number;
+    lineCost?: number;
     supplier?: string;
     link?: string;
     notes?: string;
+    specs?: Record<string, any>;
 }
 
 export interface BOMData {
     project_name?: string;
-    summary?: string;
+    summary?: any;
     components: BOMComponent[];
     totalCost?: number;
     powerAnalysis?: {

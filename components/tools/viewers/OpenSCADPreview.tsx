@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { compileToSTL, isWASMSupported } from '@/lib/openscad/client'
 import STLViewer from './STLViewer'
 import { Loader2, AlertTriangle } from 'lucide-react'
@@ -8,6 +8,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 interface OpenSCADPreviewProps {
     scadContent: string
     filename: string
+    lazy?: boolean // NEW: Only compile when explicitly requested
 }
 
 function hashString(str: string): string {
@@ -20,66 +21,100 @@ function hashString(str: string): string {
     return hash.toString()
 }
 
-export default function OpenSCADPreview({ scadContent, filename }: OpenSCADPreviewProps) {
-    const [stlData, setStlData] = useState<string | null>(null)
-    const [isCompiling, setIsCompiling] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+// Global cache shared across all instances to prevent re-compilation
+const globalCompileCache = new Map<string, string>()
 
-    // Cache compiled output by hash of scadContent
-    const compileCache = useRef<Map<string, string>>(new Map())
+function OpenSCADPreview({ scadContent, filename, lazy = false }: OpenSCADPreviewProps) {
+    const [stlData, setStlData] = useState<string | null>(null)
+    const [isCompiling, setIsCompiling] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [shouldCompile, setShouldCompile] = useState(!lazy)
+
+    const compileTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const contentHash = useRef(hashString(scadContent))
+
+    useEffect(() => {
+        contentHash.current = hashString(scadContent)
+    }, [scadContent])
 
     useEffect(() => {
         if (!isWASMSupported()) {
             setError('WebAssembly is not supported in this browser.')
-            setIsCompiling(false)
+            return
+        }
+
+        if (!shouldCompile) {
             return
         }
 
         let cancelled = false
-        const contentHash = hashString(scadContent)
 
         async function compile() {
-            setIsCompiling(true)
-            setError(null)
-
-            if (compileCache.current.has(contentHash)) {
+            // Check global cache first
+            if (globalCompileCache.has(contentHash.current)) {
                 if (!cancelled) {
-                    setStlData(compileCache.current.get(contentHash)!)
+                    setStlData(globalCompileCache.get(contentHash.current)!)
                     setIsCompiling(false)
                 }
                 return
             }
 
-            try {
-                const result = await compileToSTL(scadContent, filename)
+            setIsCompiling(true)
+            setError(null)
 
-                if (cancelled) return
-
-                if (result.error) {
-                    setError(result.error)
-                } else if (result.stl) {
-                    compileCache.current.set(contentHash, result.stl)
-                    setStlData(result.stl)
-                } else {
-                    setError('Compilation completed but output is empty.')
-                }
-            } catch (err: any) {
-                if (!cancelled) {
-                    setError(err.message || 'An error occurred during OpenSCAD compilation.')
-                }
-            } finally {
-                if (!cancelled) {
-                    setIsCompiling(false)
-                }
+            // Debounce compilation to prevent simultaneous compilations
+            if (compileTimeoutRef.current) {
+                clearTimeout(compileTimeoutRef.current)
             }
+
+            compileTimeoutRef.current = setTimeout(async () => {
+                try {
+                    const result = await compileToSTL(scadContent, filename)
+
+                    if (cancelled) return
+
+                    if (result.error) {
+                        setError(result.error)
+                    } else if (result.stl) {
+                        globalCompileCache.set(contentHash.current, result.stl)
+                        setStlData(result.stl)
+                    } else {
+                        setError('Compilation completed but output is empty.')
+                    }
+                } catch (err: any) {
+                    if (!cancelled) {
+                        setError(err.message || 'An error occurred during OpenSCAD compilation.')
+                    }
+                } finally {
+                    if (!cancelled) {
+                        setIsCompiling(false)
+                    }
+                }
+            }, 100) // 100ms debounce
         }
 
         compile()
 
         return () => {
             cancelled = true
+            if (compileTimeoutRef.current) {
+                clearTimeout(compileTimeoutRef.current)
+            }
         }
-    }, [scadContent, filename])
+    }, [scadContent, filename, shouldCompile])
+
+    if (!shouldCompile && lazy) {
+        return (
+            <div className="flex items-center justify-center h-full bg-slate-900 min-h-[300px]">
+                <button
+                    onClick={() => setShouldCompile(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
+                >
+                    Compile & Preview 3D Model
+                </button>
+            </div>
+        )
+    }
 
     if (isCompiling) {
         return (
@@ -87,6 +122,7 @@ export default function OpenSCADPreview({ scadContent, filename }: OpenSCADPrevi
                 <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
                     <span className="text-sm text-slate-400">Compiling 3D Model...</span>
+                    <span className="text-xs text-slate-500">This may take a few moments...</span>
                 </div>
             </div>
         )
@@ -101,6 +137,15 @@ export default function OpenSCADPreview({ scadContent, filename }: OpenSCADPrevi
                     <pre className="text-[10px] text-yellow-500/80 bg-black/30 p-3 rounded overflow-auto max-w-full text-left font-mono whitespace-pre-wrap max-h-48">
                         {error}
                     </pre>
+                    <button
+                        onClick={() => {
+                            setShouldCompile(false)
+                            setTimeout(() => setShouldCompile(true), 100)
+                        }}
+                        className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors"
+                    >
+                        Retry Compilation
+                    </button>
                 </div>
             </div>
         )
@@ -116,3 +161,8 @@ export default function OpenSCADPreview({ scadContent, filename }: OpenSCADPrevi
 
     return <STLViewer stlData={stlData} />
 }
+
+// Memoize to prevent unnecessary re-renders
+export default memo(OpenSCADPreview, (prev, next) => {
+    return prev.scadContent === next.scadContent && prev.filename === next.filename && prev.lazy === next.lazy
+})

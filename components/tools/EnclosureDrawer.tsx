@@ -5,15 +5,17 @@ import FileTreeView from './FileTreeView'
 import OpenSCADPreview from './viewers/OpenSCADPreview'
 import SourceCodeView from './viewers/SourceCodeView'
 import { Splitter } from '@ark-ui/react'
-import { Box, Check } from 'lucide-react'
+import { Box, Check, Loader2 } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
+import { getScadContent } from '@/lib/scad-content-loader'
 
 interface EnclosureFile {
     filename?: string  // Old format
     path?: string      // New format (from database)
     language: string
-    content: string
+    content?: string   // Optional: loaded on-demand
     description?: string
+    lazy?: boolean     // If true, content loaded via scad-content-loader
 }
 
 interface EnclosureData {
@@ -38,6 +40,8 @@ export default function EnclosureDrawer({
     const [searchQuery, setSearchQuery] = useState('')
     const [isMobile, setIsMobile] = useState(false)
     const [mobileTab, setMobileTab] = useState<'files' | 'preview' | 'source'>('files')
+    const [loadedContent, setLoadedContent] = useState<Map<string, string>>(new Map())
+    const [loadingFile, setLoadingFile] = useState<string | null>(null)
 
     // Normalize files: convert 'path' to 'filename' for compatibility
     const files = useMemo(() => {
@@ -68,8 +72,50 @@ export default function EnclosureDrawer({
     }, [files, selectedFile])
 
     const activeFile = useMemo(() => {
-        return files.find(f => f.filename === selectedFile) || null
-    }, [files, selectedFile])
+        const file = files.find(f => f.filename === selectedFile)
+        if (!file) return null
+
+        // If file is lazy and not loaded yet, return placeholder
+        if (file.lazy && !loadedContent.has(file.filename)) {
+            return {
+                ...file,
+                content: '' // Empty content until loaded
+            }
+        }
+
+        // If lazy and loaded, use loaded content
+        if (file.lazy && loadedContent.has(file.filename)) {
+            return {
+                ...file,
+                content: loadedContent.get(file.filename)!
+            }
+        }
+
+        // Otherwise use direct content
+        return file
+    }, [files, selectedFile, loadedContent])
+
+    // Load file content on-demand
+    useEffect(() => {
+        if (!activeFile || !activeFile.lazy) return
+        if (loadedContent.has(activeFile.filename)) return // Already loaded
+        
+        const filePath = activeFile.path || activeFile.filename
+        setLoadingFile(filePath)
+
+        // Simulate async loading (in real app, this would be an API call)
+        const content = getScadContent(filePath)
+        
+        if (content) {
+            setLoadedContent(prev => {
+                const next = new Map(prev)
+                next.set(activeFile.filename, content)
+                return next
+            })
+        }
+        
+        setLoadingFile(null)
+    }, [activeFile, loadedContent])
 
     const isScadFile = activeFile?.filename.endsWith('.scad') || false
     const hasReadme = useMemo(() => {
@@ -192,16 +238,46 @@ export default function EnclosureDrawer({
                         )}
                         {mobileTab === 'preview' && isScadFile && activeFile && (
                             <div className="h-full">
-                                <OpenSCADPreview scadContent={activeFile.content} filename={activeFile.filename} />
+                                {loadingFile ? (
+                                    <div className="flex items-center justify-center h-full bg-slate-900">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                            <span className="text-xs text-slate-400">Loading file...</span>
+                                        </div>
+                                    </div>
+                                ) : activeFile.content ? (
+                                    <OpenSCADPreview 
+                                        scadContent={activeFile.content} 
+                                        filename={activeFile.filename}
+                                        lazy={true}
+                                    />
+                                ) : (
+                                    <div className="flex items-center justify-center h-full bg-slate-900 text-zinc-500 text-sm">
+                                        No content available
+                                    </div>
+                                )}
                             </div>
                         )}
                         {mobileTab === 'source' && activeFile && (
                             <div className="h-full">
-                                <SourceCodeView
-                                    content={activeFile.content}
-                                    filename={activeFile.filename}
-                                    language={activeFile.language}
-                                />
+                                {loadingFile ? (
+                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                            <span className="text-xs text-slate-400">Loading file...</span>
+                                        </div>
+                                    </div>
+                                ) : activeFile.content ? (
+                                    <SourceCodeView
+                                        content={activeFile.content}
+                                        filename={activeFile.filename}
+                                        language={activeFile.language}
+                                    />
+                                ) : (
+                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e] text-zinc-500 text-sm">
+                                        No content available
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -255,7 +331,24 @@ export default function EnclosureDrawer({
                                     panels={[{ id: 'preview', minSize: 20 }, { id: 'code', minSize: 20 }]}
                                 >
                                     <Splitter.Panel id="preview" className="relative flex-1 overflow-hidden min-h-[150px]">
-                                        <OpenSCADPreview scadContent={activeFile.content} filename={activeFile.filename} />
+                                        {loadingFile ? (
+                                            <div className="flex items-center justify-center h-full bg-slate-900">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                                    <span className="text-xs text-slate-400">Loading file...</span>
+                                                </div>
+                                            </div>
+                                        ) : activeFile.content ? (
+                                            <OpenSCADPreview 
+                                                scadContent={activeFile.content} 
+                                                filename={activeFile.filename}
+                                                lazy={true}
+                                            />
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full bg-slate-900 text-zinc-500 text-sm">
+                                                No content available
+                                            </div>
+                                        )}
                                     </Splitter.Panel>
 
                                     <Splitter.ResizeTrigger id="preview:code" className="h-[2px] bg-[#121214] hover:bg-blue-500 transition-colors relative z-10 flex items-center justify-center group outline-none focus-visible:bg-blue-500 cursor-row-resize">
@@ -263,20 +356,46 @@ export default function EnclosureDrawer({
                                     </Splitter.ResizeTrigger>
 
                                     <Splitter.Panel id="code" className="relative flex-1 overflow-hidden min-h-[150px]">
-                                        <SourceCodeView
-                                            content={activeFile.content}
-                                            filename={activeFile.filename}
-                                            language={activeFile.language}
-                                        />
+                                        {loadingFile ? (
+                                            <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                                    <span className="text-xs text-slate-400">Loading file...</span>
+                                                </div>
+                                            </div>
+                                        ) : activeFile.content ? (
+                                            <SourceCodeView
+                                                content={activeFile.content}
+                                                filename={activeFile.filename}
+                                                language={activeFile.language}
+                                            />
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full bg-[#1e1e1e] text-zinc-500 text-sm">
+                                                No content available
+                                            </div>
+                                        )}
                                     </Splitter.Panel>
                                 </Splitter.Root>
                             ) : (
                                 /* Standard Full Panel Code View */
-                                <SourceCodeView
-                                    content={activeFile.content}
-                                    filename={activeFile.filename}
-                                    language={activeFile.language}
-                                />
+                                loadingFile ? (
+                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                            <span className="text-xs text-slate-400">Loading file...</span>
+                                        </div>
+                                    </div>
+                                ) : activeFile.content ? (
+                                    <SourceCodeView
+                                        content={activeFile.content}
+                                        filename={activeFile.filename}
+                                        language={activeFile.language}
+                                    />
+                                ) : (
+                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e] text-zinc-500 text-sm">
+                                        No content available
+                                    </div>
+                                )
                             )
                         ) : (
                             <div className="flex items-center justify-center h-full text-zinc-500 italic text-sm">

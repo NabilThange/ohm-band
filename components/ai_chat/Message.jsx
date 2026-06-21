@@ -10,18 +10,38 @@ import { getAgentIdentity, findAgentIdByName, AGENT_IDENTITIES } from "@/lib/age
 import { QuestionComponent } from "./QuestionComponent"
 import { formatAnswersForAgent } from "@/lib/agents/question-parser"
 
-export default function Message({ role, children, metadata }) {
+export default function Message({ role, children, metadata, artifacts }) {
     const isUser = role === "user"
 
     // Convert children to string for parsing
-    const rawContent = typeof children === 'string' ? children : String(children || '')
+    let rawContent = typeof children === 'string' ? children : String(children || '')
+
+    // Extract questions from metadata FIRST
+    const questions = metadata?.questions
+    const hasQuestions = metadata?.hasQuestions
+
+    // Debug logging for questions
+    console.log('[Message] 🔍 Message metadata:', { 
+        hasQuestions, 
+        questionsCount: questions?.questions?.length, 
+        metadataKeys: Object.keys(metadata || {}),
+        metadataFull: metadata  // Log full metadata to see what's there
+    });
+
+    // ponytail: If message has questions, strip the <QUESTIONS> tags from display
+    // The parser already extracted them to metadata, so we don't want to render the JSON
+    if (hasQuestions) {
+        console.log('[Message] ⚠️ BEFORE strip, rawContent length:', rawContent.length);
+        console.log('[Message] ⚠️ BEFORE strip, has <QUESTIONS>:', rawContent.includes('<QUESTIONS>'));
+        rawContent = rawContent.replace(/<QUESTIONS>\s*[\s\S]*?\s*<\/QUESTIONS>/gi, '').trim();
+        console.log('[Message] ✅ AFTER strip, rawContent length:', rawContent.length);
+        console.log('[Message] ✅ AFTER strip, has <QUESTIONS>:', rawContent.includes('<QUESTIONS>'));
+    } else {
+        console.log('[Message] ℹ️ No questions in metadata, rawContent has <QUESTIONS>:', rawContent.includes('<QUESTIONS>'));
+    }
 
     // Extract tool calls and agent info from metadata
     const toolCalls = metadata?.toolCalls || []
-
-    // Extract questions from metadata
-    const questions = metadata?.questions
-    const hasQuestions = metadata?.hasQuestions
 
     // Try to get agentId from multiple sources
     // Priority: metadata.agentId > metadata.agent_id > agent_name (from message object)
@@ -187,7 +207,7 @@ export default function Message({ role, children, metadata }) {
 
                                     {/* BOM Card - shown inline when BOM tool call is present */}
                                     {toolCalls.length > 0 && (() => {
-                                        // Find BOM tool call - support both new (write) and legacy (update_bom) tools
+                                        // First check if THIS message has a BOM tool call
                                         const bomToolCall = toolCalls.find(tc => {
                                             const toolName = tc.function?.name || tc.name;
                                             // New tool: write with artifact_type='bom'
@@ -200,50 +220,63 @@ export default function Message({ role, children, metadata }) {
                                             return toolName === 'update_bom';
                                         });
 
-                                        if (bomToolCall) {
-                                            try {
-                                                console.log('[Message] 🔍 Found BOM tool call:', bomToolCall);
-
-                                                // Extract arguments
-                                                let bomArgs = bomToolCall.function?.arguments || bomToolCall.arguments;
-
-                                                // Parse if string
-                                                let parsedBomData = bomArgs;
-                                                if (typeof bomArgs === 'string') {
-                                                    try {
-                                                        parsedBomData = JSON.parse(bomArgs);
-                                                    } catch (err) {
-                                                        console.error('[Message] ❌ Failed to parse BOM arguments string:', err);
-                                                        return null;
-                                                    }
-                                                }
-
-                                                // Extract content from new tool format
-                                                const bomData = parsedBomData?.content || parsedBomData;
-
-                                                console.log('[Message] 📄 Parsed BOM Data:', bomData ? 'Object' : 'Null');
-
-                                                if (bomData && bomData.components) {
-                                                    // ponytail: Map DB field names (component, unit_price) to UI field names (name, estimatedCost)
-                                                    const mappedBomData = {
-                                                        ...bomData,
-                                                        components: bomData.components.map(c => ({
-                                                            ...c,
-                                                            name: c.component || c.name, // Support both field names
-                                                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
-                                                            partNumber: c.partNumber || ''
-                                                        }))
-                                                    };
-                                                    
-                                                    console.log('[Message] 📦 Rendering BOMCard with', mappedBomData.components.length, 'components');
-                                                    return <BOMCard data={mappedBomData} />;
-                                                } else {
-                                                    console.warn('[Message] ⚠️ BOM data missing "components" array:', bomData);
-                                                }
-                                            } catch (e) {
-                                                console.error('[Message] 💥 Unexpected error rendering BOM card:', e);
-                                            }
+                                        // Only show BOM if THIS message created it
+                                        if (!bomToolCall) {
+                                            return null;
                                         }
+
+                                        // Prefer fresh database artifact over stale tool call data
+                                        const bomFromDatabase = artifacts?.bom?.version?.content_json;
+                                        
+                                        if (bomFromDatabase) {
+                                            console.log('[Message] 📦 Using BOM from database artifact (fresh data)');
+                                            return <BOMCard data={bomFromDatabase} />;
+                                        }
+                                        
+                                        // Fallback: Use tool call data
+                                        try {
+                                            console.log('[Message] 🔍 Using BOM from tool call (fallback - may have stale data)');
+
+                                            // Extract arguments
+                                            let bomArgs = bomToolCall.function?.arguments || bomToolCall.arguments;
+
+                                            // Parse if string
+                                            let parsedBomData = bomArgs;
+                                            if (typeof bomArgs === 'string') {
+                                                try {
+                                                    parsedBomData = JSON.parse(bomArgs);
+                                                } catch (err) {
+                                                    console.error('[Message] ❌ Failed to parse BOM arguments string:', err);
+                                                    return null;
+                                                }
+                                            }
+
+                                            // Extract content from new tool format
+                                            const bomData = parsedBomData?.content || parsedBomData;
+
+                                            console.log('[Message] 📄 Parsed BOM Data:', bomData ? 'Object' : 'Null');
+
+                                            if (bomData && bomData.components) {
+                                                // ponytail: Map DB field names (component) to UI field names (name) but preserve all price fields
+                                                // Let BOMCard's getComponentPrice() handle price field resolution
+                                                const mappedBomData = {
+                                                    ...bomData,
+                                                    components: bomData.components.map(c => ({
+                                                        ...c, // Keep ALL original fields (unitCost, lineCost, etc.)
+                                                        name: c.component || c.name, // Support both field names
+                                                        // Don't override price fields - let getComponentPrice() handle fallbacks
+                                                    }))
+                                                };
+                                                
+                                                console.log('[Message] 📦 Rendering BOMCard with', mappedBomData.components.length, 'components');
+                                                return <BOMCard data={mappedBomData} />;
+                                            } else {
+                                                console.warn('[Message] ⚠️ BOM data missing "components" array:', bomData);
+                                            }
+                                        } catch (e) {
+                                            console.error('[Message] 💥 Unexpected error rendering BOM card:', e);
+                                        }
+                                        
                                         return null;
                                     })()}
 
