@@ -1253,7 +1253,7 @@ const FARM_DRONE_CODE_CONTAINER_DATA = {
 // ENCLOSURE CAD CONTENTS
 // ============================================================
 
-const pixhawkCaseScadContent = `// ══════════════════════════════════════════════════════════
+export const pixhawkCaseScadContent = `// ══════════════════════════════════════════════════════════
 // Pixhawk 6C Protective Enclosure with Snap-Fit Lid
 // Print in PETG, 0.2 mm layers, 35 % Gyroid infill
 // ══════════════════════════════════════════════════════════
@@ -1358,7 +1358,7 @@ module pixhawk_lid() {
 pixhawk_base();
 translate([0, outer_w + 10, 0]) pixhawk_lid();`;
 
-const esp32CameraNacelleScadContent = `// ══════════════════════════════════════════════════════════
+export const esp32CameraNacelleScadContent = `// ══════════════════════════════════════════════════════════
 // ESP32-S3 + RPi Camera Module 3 Nacelle
 // Forward-facing camera with 10° downward tilt
 // Integrated FPC cable routing channel
@@ -1445,7 +1445,7 @@ module nacelle_assembly() {
 
 nacelle_assembly();`;
 
-const gpsMastMountScadContent = `// ══════════════════════════════════════════════════════════
+export const gpsMastMountScadContent = `// ══════════════════════════════════════════════════════════
 // GPS Mast Mount — u-blox M9N
 // Positions GPS 60 mm above frame top plate
 // Twist-lock base fits F450 centre plate M3 standoffs
@@ -1520,7 +1520,7 @@ base_plate();
 translate([0, 0, base_h]) mast();
 translate([0, 0, base_h + mast_h]) gps_head();`;
 
-const landingLegSetScadContent = `// ══════════════════════════════════════════════════════════
+export const landingLegSetScadContent = `// ══════════════════════════════════════════════════════════
 // Shock-Absorbing Landing Legs (×4 set)
 // Flex node at ankle dissipates landing energy
 // Print 4 copies. Material: PETG for flex node stiffness.
@@ -1610,7 +1610,7 @@ module landing_leg() {
 for (i = [0:3])
     translate([i * 45, 0, 0]) landing_leg();`;
 
-const batteryTrayScadContent = `// ══════════════════════════════════════════════════════════
+export const batteryTrayScadContent = `// ══════════════════════════════════════════════════════════
 // Battery Tray — Tattu 4S 5000 mAh (158 × 46 × 42 mm)
 // Features:
 //   - Exact-fit recess keeps battery from sliding

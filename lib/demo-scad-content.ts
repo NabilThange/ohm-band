@@ -4,7 +4,7 @@
  * This file is NOT imported until content is needed
  */
 
-export const scadContentMap: Record<string, () => string> = {
+export const scadContentMap: Record<string, () => Promise<string>> = {
     'models/pixhawk_case.scad': () => import('./agents/demo-responses').then(m => m.pixhawkCaseScadContent || ''),
     'models/esp32_camera_nacelle.scad': () => import('./agents/demo-responses').then(m => m.esp32CameraNacelleScadContent || ''),
     'models/gps_mast_mount.scad': () => import('./agents/demo-responses').then(m => m.gpsMastMountScadContent || ''),
