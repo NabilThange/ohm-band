@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Check, Loader2, Wrench, FileCode, Folder, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Loader2, Wrench, FileCode, Folder, Search, AlertCircle } from 'lucide-react';
 
 export interface ToolCallItem {
     id?: string;
     tool?: string;
     toolName?: string;
-    state?: 'running' | 'completed' | 'failed' | string;
+    state?: any;
     args?: any;
     result?: any;
 }
@@ -23,7 +23,10 @@ export function ToolExecution({ tools, isStreaming = false }: ToolExecutionProps
     if (!tools || tools.length === 0) return null;
 
     const count = tools.length;
-    const runningCount = tools.filter((t) => t.state === 'running').length;
+    const runningCount = tools.filter((t) => {
+        const s = typeof t.state === 'string' ? t.state : t.state?.status;
+        return s === 'running' || s === 'pending';
+    }).length;
     const hasRunning = runningCount > 0 || isStreaming;
 
     const getToolIcon = (name: string = '') => {
@@ -63,8 +66,11 @@ export function ToolExecution({ tools, isStreaming = false }: ToolExecutionProps
             {isOpen && (
                 <div className="border-t border-border/40 bg-background/50 divide-y divide-border/30">
                     {tools.map((t, idx) => {
-                        const name = t.toolName || t.tool || 'tool';
-                        const args = t.args || {};
+                        const name = String(t.toolName || t.tool || 'tool');
+                        const rawState = t.state;
+                        const status = typeof rawState === 'string' ? rawState : (rawState?.status || 'completed');
+                        const args = t.args || (typeof rawState === 'object' ? rawState?.input : null) || {};
+                        const output = t.result || (typeof rawState === 'object' ? rawState?.output : null);
                         const path = args.path || args.file_path || args.filename || args.query || '';
 
                         return (
@@ -73,20 +79,26 @@ export function ToolExecution({ tools, isStreaming = false }: ToolExecutionProps
                                     <div className="flex items-center gap-1.5">
                                         {getToolIcon(name)}
                                         <span className="font-semibold text-foreground">{name}</span>
-                                        {path && (
+                                        {path && typeof path === 'string' && (
                                             <span className="text-muted-foreground truncate max-w-[220px]">
                                                 {path}
                                             </span>
                                         )}
                                     </div>
                                     <span className="text-[10px] text-muted-foreground uppercase">
-                                        {t.state || 'completed'}
+                                        {String(status)}
                                     </span>
                                 </div>
 
-                                {Object.keys(args).length > 0 && (
+                                {args && typeof args === 'object' && Object.keys(args).length > 0 && (
                                     <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted/40 p-1.5 text-[10px] text-muted-foreground">
-                                        {typeof args === 'string' ? args : JSON.stringify(args, null, 2)}
+                                        {JSON.stringify(args, null, 2)}
+                                    </pre>
+                                )}
+
+                                {output && (
+                                    <pre className="mt-1 max-h-32 overflow-auto rounded bg-background/80 p-1.5 text-[10px] text-muted-foreground border border-border/30">
+                                        {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
                                     </pre>
                                 )}
                             </div>

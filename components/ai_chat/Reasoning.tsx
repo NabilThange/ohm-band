@@ -223,7 +223,7 @@ export function ReasoningContent({
                     </div>
                 ) : (
                     <div className="font-mono text-[11px] italic text-muted-foreground/70">
-                        {isStreaming ? 'Analyzing project requirements and constraints...' : children}
+                        {isStreaming ? 'Analyzing project requirements and constraints...' : (typeof children === 'string' ? children : '')}
                     </div>
                 )}
             </div>

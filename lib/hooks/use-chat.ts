@@ -108,11 +108,24 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                             showToolCallToast(toolName);
                         }
 
-                        const idx = currentStreamedToolsRef.current.findIndex((p) => p.id === part.id);
+                        const toolStatus = typeof part.state === 'string' ? part.state : (part.state?.status || 'completed');
+                        const toolArgs = part.args || (typeof part.state === 'object' ? part.state?.input : null) || {};
+                        const toolOutput = part.result || (typeof part.state === 'object' ? part.state?.output : null);
+
+                        const normalizedTool = {
+                            id: part.id || Math.random().toString(36).slice(2),
+                            tool: toolName,
+                            toolName,
+                            state: toolStatus,
+                            args: toolArgs,
+                            result: toolOutput
+                        };
+
+                        const idx = currentStreamedToolsRef.current.findIndex((p) => p.id === normalizedTool.id);
                         if (idx >= 0) {
-                            currentStreamedToolsRef.current[idx] = part;
+                            currentStreamedToolsRef.current[idx] = normalizedTool;
                         } else {
-                            currentStreamedToolsRef.current.push(part);
+                            currentStreamedToolsRef.current.push(normalizedTool);
                         }
                     }
 
