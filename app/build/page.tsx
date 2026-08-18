@@ -3,12 +3,12 @@
 // ponytail: prevent static generation, needs runtime env
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ProjectCreator } from "@/components/text_area/ProjectCreator"
 import AIAssistantUI from "@/components/ai_chat/AIAssistantUI"
 
-export default function BuildPage() {
+function BuildPageContent() {
     const params = useParams()
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -59,4 +59,12 @@ export default function BuildPage() {
 
     // @ts-ignore
     return <AIAssistantUI initialPrompt={initialPrompt || urlInitialPrompt} initialChatId={chatId} />
+}
+
+export default function BuildPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center font-mono text-xs text-muted-foreground">Loading workspace...</div>}>
+            <BuildPageContent />
+        </Suspense>
+    )
 }
