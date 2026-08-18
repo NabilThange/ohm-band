@@ -468,6 +468,21 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
             setSidebarOpen(false);
 
             if (promptText) {
+                const storageKey = `ohm_init_prompt_sent_${chatId}`;
+                if (typeof window !== 'undefined') {
+                    if (sessionStorage.getItem(storageKey)) {
+                        console.log('[AIAssistantUI] Initial prompt already sent for this project, skipping re-send.');
+                        if (window.location.search.includes('initialPrompt')) {
+                            window.history.replaceState({}, '', `/build/${chatId}`);
+                        }
+                        return;
+                    }
+                    sessionStorage.setItem(storageKey, 'true');
+                    if (window.location.search.includes('initialPrompt')) {
+                        window.history.replaceState({}, '', `/build/${chatId}`);
+                    }
+                }
+
                 console.log('[AIAssistantUI] Sending initial message via sendMessage:', promptText);
                 // Call useChat sendMessage directly to display user message and start live response stream
                 sendMessage(promptText);
