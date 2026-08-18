@@ -9,6 +9,7 @@ import { Message as UIMessage, MessageContent, MessageAvatar } from "@/component
 import { getAgentIdentity, findAgentIdByName, AGENT_IDENTITIES } from "@/lib/agents/agent-identities"
 import { QuestionComponent } from "./QuestionComponent"
 import { formatAnswersForAgent } from "@/lib/parsers"
+import { AgentExecutionFlow } from "./AgentExecutionFlow"
 import { Reasoning, ReasoningTrigger, ReasoningContent } from "./Reasoning"
 import ToolExecution from "./ToolExecution"
 
@@ -122,24 +123,14 @@ export default function Message({ role, children, metadata, reasoning, tools }) 
 
                             return (
                                 <>
-                                    {/* OpenCode Reasoning / Thinking Process */}
-                                    {(effectiveReasoning || metadata?.isStreaming) && (
-                                        <Reasoning
-                                            isStreaming={metadata?.isStreaming}
-                                            duration={metadata?.reasoningDuration ? Math.round(metadata.reasoningDuration / 1000) : undefined}
-                                        >
-                                            <ReasoningTrigger />
-                                            <ReasoningContent>{effectiveReasoning || ''}</ReasoningContent>
-                                        </Reasoning>
-                                    )}
-
-                                    {/* OpenCode Native Tools */}
-                                    {effectiveTools && effectiveTools.length > 0 && (
-                                        <ToolExecution
-                                            tools={effectiveTools}
-                                            isStreaming={metadata?.isStreaming}
-                                        />
-                                    )}
+                                    {/* Unified Chronological Agent Execution Flow (Thinking + Tools) */}
+                                    <AgentExecutionFlow
+                                        reasoning={effectiveReasoning}
+                                        tools={effectiveTools}
+                                        steps={metadata?.executionSteps || []}
+                                        isStreaming={metadata?.isStreaming}
+                                        duration={metadata?.reasoningDuration ? Math.round(metadata.reasoningDuration / 1000) : undefined}
+                                    />
                                     {segments.map((segment, index) => {
                                         if (segment.type === 'text') {
                                             if (!segment.content || !segment.content.trim()) return null;

@@ -4,9 +4,9 @@
   "description": "The path of least resistance - An intelligent workspace that bridges the gap between software and silicon",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"opencode serve . --port 4096 --hostname 0.0.0.0 --print-logs --log-level INFO --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
-    "dev:web": "concurrently \"opencode web . --port 4096 --hostname 0.0.0.0 --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
-    "dev:debug": "concurrently \"opencode serve . --port 4096 --hostname 0.0.0.0 --print-logs --log-level DEBUG --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
+    "dev": "concurrently \"opencode serve --port 4096 --hostname 0.0.0.0 --print-logs --log-level INFO --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
+    "dev:web": "concurrently \"opencode web --port 4096 --hostname 0.0.0.0 --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
+    "dev:debug": "concurrently \"opencode serve --port 4096 --hostname 0.0.0.0 --print-logs --log-level DEBUG --cors https://ohhmm.vercel.app --cors http://localhost:3000\" \"next dev\"",
     "dev:attach": "opencode attach http://localhost:4096",
     "build": "next build",
     "start": "next start",

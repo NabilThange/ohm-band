@@ -56,6 +56,18 @@ export interface MessageSegment {
     filename?: string;
 }
 
+function normalizeQuestionType(type?: string, options?: string[]): 'single_select' | 'multiple_select' | 'text' | 'textarea' {
+    if (!type) {
+        return (options && options.length > 0) ? 'single_select' : 'text';
+    }
+    const t = String(type).toLowerCase().trim();
+    if (t.includes('multi') || t.includes('check')) return 'multiple_select';
+    if (t.includes('single') || t.includes('radio') || t.includes('choice') || t.includes('select')) return 'single_select';
+    if (t.includes('area') || t.includes('long') || t.includes('paragraph')) return 'textarea';
+    if (t.includes('text') || t.includes('input') || t.includes('string') || t.includes('open')) return 'text';
+    return (options && options.length > 0) ? 'single_select' : 'text';
+}
+
 export function parseMessageContent(rawContent: string): {
     cleanedText: string;
     bomData: BOMData | null;
@@ -96,7 +108,7 @@ export function parseMessageContent(rawContent: string): {
                 parsedQuestions = parsed.map((q: any, i: number) => ({
                     id: q.id || `q_${i + 1}`,
                     text: q.text || q.question || `Question ${i + 1}`,
-                    type: q.type || 'single_select',
+                    type: normalizeQuestionType(q.type, q.options),
                     options: Array.isArray(q.options) ? q.options : [],
                     required: q.required !== false
                 }));
@@ -107,17 +119,17 @@ export function parseMessageContent(rawContent: string): {
         text = text.replace(/<questions>[\s\S]*?<\/questions>/gi, '').trim();
     }
 
-    // Fallback: Parse standalone JSON array of questions without XML wrapper [ { "id": "...", "options": [...] } ]
+    // Fallback: Parse standalone JSON array of questions without XML wrapper [ { "id": "...", ... } ]
     if (!parsedQuestions) {
-        const rawArrayMatch = text.match(/\[\s*\{\s*["']id["'][\s\S]*?\}\s*\]/);
+        const rawArrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (rawArrayMatch) {
             try {
                 const parsed = JSON.parse(rawArrayMatch[0]);
-                if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].options || parsed[0].text || parsed[0].question)) {
+                if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].id || parsed[0].text || parsed[0].question)) {
                     parsedQuestions = parsed.map((q: any, i: number) => ({
                         id: q.id || `q_${i + 1}`,
                         text: q.text || q.question || `Question ${i + 1}`,
-                        type: q.type || 'single_select',
+                        type: normalizeQuestionType(q.type, q.options),
                         options: Array.isArray(q.options) ? q.options : [],
                         required: q.required !== false
                     }));

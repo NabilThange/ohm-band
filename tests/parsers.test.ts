@@ -56,6 +56,22 @@ Let me know what you think!`;
         assert.ok(!parsed.cleanedText.includes('<questions>'));
     });
 
+    test('parseMessageContent handles standalone JSON arrays with multi_select and open-ended text', () => {
+        const raw = `Here are questions:
+[
+  {"id":"extras","text":"Anything else you want?","type":"multi_select","options":["LED","OLED Screen"]},
+  {"id":"notes","text":"Any specific mounting or dimensions requirements?"}
+]
+Take your time!`;
+
+        const parsed = parseMessageContent(raw);
+        assert.equal(parsed.hasQuestions, true);
+        assert.ok(parsed.questions);
+        assert.equal(parsed.questions.questions.length, 2);
+        assert.equal(parsed.questions.questions[0].type, 'multiple_select');
+        assert.equal(parsed.questions.questions[1].type, 'text');
+    });
+
     test('splitMessageIntoSegments extracts text and code segments with filenames', () => {
         const textWithCode = `Here is the header:
 \`\`\`cpp:include/config.h
