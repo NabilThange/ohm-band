@@ -58,7 +58,11 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
     useEffect(() => {
         if (!chatId) return;
 
-        const es = new EventSource('/api/opencode/events');
+        const opencodeUrl = process.env.NEXT_PUBLIC_OPENCODE_URL || 'http://127.0.0.1:4096';
+        const isRemote = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        const sseUrl = isRemote ? `${opencodeUrl}/event` : '/api/opencode/events';
+
+        const es = new EventSource(sseUrl);
 
         es.onmessage = (e) => {
             try {
@@ -188,7 +192,7 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
             }
 
             try {
-                const res = await fetch('/api/agents/chat', {
+                let res = await fetch('/api/agents/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -199,8 +203,36 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                 });
 
                 if (!res.ok) {
-                    const errorData = await res.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to send message');
+                    const opencodeUrl = process.env.NEXT_PUBLIC_OPENCODE_URL || 'http://127.0.0.1:4096';
+                    console.warn('[useChat] Cloud API failed, trying direct browser-to-daemon dispatch on:', opencodeUrl);
+
+                    // Direct client-side dispatch from browser to local OpenCode
+                    let sessionId = chatId;
+                    try {
+                        const sRes = await fetch(`${opencodeUrl}/session`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: content.slice(0, 30) })
+                        });
+                        if (sRes.ok) {
+                            const sData = await sRes.json();
+                            sessionId = sData.id || sessionId;
+                        }
+                    } catch {}
+
+                    res = await fetch(`${opencodeUrl}/session/${sessionId}/message`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            parts: [{ type: 'text', text: content }],
+                            agent: forceAgent || undefined
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const errorData = await res.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Failed to dispatch message to OpenCode');
+                    }
                 }
             } catch (err: any) {
                 console.error('[useChat] Error sending message:', err);

@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { SVGSchematicGenerator } from '@/lib/diagram/svg-generator';
 
-const WORKSPACE_ROOT = path.join(process.cwd(), 'workspace');
+const WORKSPACE_ROOT = process.env.VERCEL === '1'
+    ? path.join(os.tmpdir(), 'workspace')
+    : path.join(process.cwd(), 'workspace');
 const PROJECTS_ROOT = path.join(WORKSPACE_ROOT, 'projects');
 
 export interface ProjectMetadata {

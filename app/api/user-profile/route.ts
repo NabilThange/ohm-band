@@ -3,9 +3,13 @@ import path from "path";
 import fsp from "fs/promises";
 import fs from "fs";
 
+import os from "os";
+
 export const dynamic = 'force-dynamic';
 
-const WORKSPACE_ROOT = path.join(process.cwd(), 'workspace');
+const WORKSPACE_ROOT = process.env.VERCEL === '1'
+    ? path.join(os.tmpdir(), 'workspace')
+    : path.join(process.cwd(), 'workspace');
 const USER_PROFILE_PATH = path.join(WORKSPACE_ROOT, 'USER_PROFILE.md');
 
 export interface UserHardwareProfile {
