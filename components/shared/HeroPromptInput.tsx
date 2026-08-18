@@ -50,15 +50,12 @@ export function HeroPromptInput({ variant = 'landing' }: HeroPromptInputProps) {
             console.error("Failed to generate project title:", err);
         }
 
-        // Fallback slug
-        const fallbackSlug = userMessage
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .slice(0, 35) || 'hardware-project';
+        // Fallback numeric project ID
+        const fallbackId = String(Date.now());
 
         setMessage('');
         startTransition(() => {
-            router.push(`/build/${fallbackSlug}?initialPrompt=${encodeURIComponent(userMessage)}`);
+            router.push(`/build/${fallbackId}?initialPrompt=${encodeURIComponent(userMessage)}`);
         });
         
         setIsSubmitting(false);

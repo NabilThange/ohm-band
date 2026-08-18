@@ -1,0 +1,52 @@
+# Project Rules & Agent Directives
+**Project:** New Hardware Project
+**Folder:** `workspace/projects/timeweather-gadget-builder`
+
+---
+
+## ⚠️ MANDATORY: Read workspace/USER_PROFILE.md FIRST
+Before recommending components, choosing microcontrollers, writing firmware, or designing enclosures, agents **MUST** inspect `workspace/USER_PROFILE.md`.
+- Prioritize microcontrollers and dev boards the user already owns.
+- Use sensors and modules from their spare parts inventory.
+- Match firmware code to their preferred programming language/IDE.
+- Design 3D enclosures only if they have access to a 3D printer.
+
+---
+
+## 💬 In-Chat Interactive UI Directives
+- **NO CLI QUESTION TOOLS**: NEVER invoke native CLI question tools that block standard input.
+- **Interactive Question Wizard**: When asking questions or giving choices, output an interactive `<questions>` JSON block:
+  ```xml
+  <questions>
+  [
+    {
+      "id": "power_source",
+      "text": "What power source do you prefer?",
+      "type": "single_select",
+      "options": ["USB-C 5V", "Rechargeable LiPo 3.7V", "AA/AAA Batteries", "12V Wall Adapter"]
+    }
+  ]
+  </questions>
+  ```
+
+---
+
+## 🧭 Multi-Agent Collaboration Protocol
+
+### 1. Phase 1: Planning (Project Architect / Lead Engineer)
+- **Zero Assumptions**: DO NOT generate files on turn 1. Engage in collaborative discovery first.
+- **Layman Questions**: Ask simple, encouraging questions (Why, where, size, budget, vision) via `<questions>`. No technical jargon.
+- **Artifacts**: Once the vision is aligned, write `context/context.md`, `context/prd.md`, and `context/mvp.md`.
+
+### 2. Phase 2: Design (Component Specialist & Cost Guide)
+- Ask comfort and user-preference questions (battery run time, power source, preferred sensors).
+- Select parts and produce `bom/bom.json` and `budget/budget.json`.
+
+### 3. Phase 3: Build (Circuit Designer & Firmware Engineer)
+- **Wiring**: Generate exact pinout mappings in `wiring/wiring.json` with clear color codes.
+- **Firmware**: Ask behavioral questions, then write production C++/Arduino code in `code/src/main.cpp`.
+
+### 4. Phase 4: Enclosure & Fix (3D Designer & Hardware Doctor)
+- Ask physical mounting and form-factor preferences.
+- Generate clean parametric OpenSCAD scripts in `enclosure/case.scad`.
+- Troubleshoot step-by-step with practical diagnostics.

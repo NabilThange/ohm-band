@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureProjectDirectory, slugifyProjectTitle } from "@/lib/workspace/project-fs";
+import { ensureProjectDirectory } from "@/lib/workspace/project-fs";
 import path from "path";
 import fsp from "fs/promises";
 import fs from "fs";
@@ -74,11 +74,11 @@ export async function POST(req: NextRequest) {
             generatedTitle = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') || "Hardware Project";
         }
 
-        // 3. Generate clean slug for project folder name
-        const slug = slugifyProjectTitle(generatedTitle);
-        const effectiveChatId = requestedChatId || slug;
+        // 3. Numeric ID for clean build URLs and folder naming
+        const numericId = String(Date.now());
+        const effectiveChatId = requestedChatId || numericId;
 
-        // 4. Ensure project folder is created with this slug/name
+        // 4. Ensure project folder is created with this numeric ID
         const projectDir = await ensureProjectDirectory(effectiveChatId, generatedTitle);
         const stagePath = path.join(projectDir, "stage.json");
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             title: generatedTitle,
-            slug,
+            slug: effectiveChatId,
             chatId: effectiveChatId
         });
 

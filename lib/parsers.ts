@@ -107,6 +107,26 @@ export function parseMessageContent(rawContent: string): {
         text = text.replace(/<questions>[\s\S]*?<\/questions>/gi, '').trim();
     }
 
+    // Fallback: Parse standalone JSON array of questions without XML wrapper [ { "id": "...", "options": [...] } ]
+    if (!parsedQuestions) {
+        const rawArrayMatch = text.match(/\[\s*\{\s*["']id["'][\s\S]*?\}\s*\]/);
+        if (rawArrayMatch) {
+            try {
+                const parsed = JSON.parse(rawArrayMatch[0]);
+                if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].options || parsed[0].text || parsed[0].question)) {
+                    parsedQuestions = parsed.map((q: any, i: number) => ({
+                        id: q.id || `q_${i + 1}`,
+                        text: q.text || q.question || `Question ${i + 1}`,
+                        type: q.type || 'single_select',
+                        options: Array.isArray(q.options) ? q.options : [],
+                        required: q.required !== false
+                    }));
+                    text = text.replace(rawArrayMatch[0], '').trim();
+                }
+            } catch {}
+        }
+    }
+
     // 3. Remove legacy container tags if any exist
     const cleaned = text
         .replace(/<BOM_CONTAINER>[\s\S]*?<\/BOM_CONTAINER>/g, '')

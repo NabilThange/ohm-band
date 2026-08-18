@@ -1,22 +1,21 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { showAgentChangeToast, showToolCallToast } from '@/lib/agents/toast-notifications';
 
 export interface ChatMessage {
     id: string;
-    chat_id: string;
-    role: 'user' | 'assistant';
+    chat_id?: string;
+    role: 'user' | 'assistant' | 'system';
     content: string;
     reasoning?: string;
     tools?: any[];
-    parts?: any[];
-    sequence_number?: number;
+    agent_name?: string;
     created_at?: string;
-    agent_name?: string | null;
-    agent_id?: string | null;
-    metadata?: any;
+    metadata?: Record<string, any>;
 }
 
-export function useChat(chatId: string | null, onAgentChange?: (agent: any) => void) {
+export function useChat(chatId: string) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -27,24 +26,86 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
     const currentStreamedReasoningRef = useRef<string>('');
     const currentStreamedToolsRef = useRef<any[]>([]);
 
-    // Load message history from local project store
+    // Get or initialize persistent OpenCode session ID from localStorage
+    const getSessionId = useCallback(() => {
+        if (!chatId) return '';
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem(`ohm_session_${chatId}`) || '';
+        }
+        return '';
+    }, [chatId]);
+
+    const setSessionId = useCallback((sId: string) => {
+        if (!chatId || !sId) return;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(`ohm_session_${chatId}`, sId);
+        }
+    }, [chatId]);
+
+    // Load message history from local project store or directly from OpenCode daemon
     const loadMessages = useCallback(async () => {
         if (!chatId) return;
 
-        setIsLoading(true);
+        const isRemote = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        const opencodeUrl = process.env.NEXT_PUBLIC_OPENCODE_URL || 'http://127.0.0.1:4096';
+
         try {
+            // 1. Try local Next.js project endpoint
             const res = await fetch(`/api/projects/${chatId}/messages`);
             if (res.ok) {
                 const data = await res.json();
-                setMessages(data || []);
+                if (Array.isArray(data) && data.length > 0) {
+                    setMessages(data);
+                    return;
+                }
+            }
+
+            // 2. Fallback for Vercel: read directly from local OpenCode daemon session
+            if (isRemote) {
+                const sId = getSessionId() || chatId;
+                const ocRes = await fetch(`${opencodeUrl}/session/${sId}/message`);
+                if (ocRes.ok) {
+                    const ocData = await ocRes.json();
+                    if (Array.isArray(ocData) && ocData.length > 0) {
+                        const mapped: ChatMessage[] = ocData.map((m: any) => {
+                            let text = '';
+                            let reasoning = '';
+                            const tools: any[] = [];
+
+                            for (const p of m.parts || []) {
+                                if (p.type === 'text') text += p.text || '';
+                                if (p.type === 'reasoning') reasoning += p.text || '';
+                                if (p.type === 'tool' || p.tool) {
+                                    tools.push({
+                                        id: p.id,
+                                        tool: p.tool || p.name,
+                                        toolName: p.tool || p.name,
+                                        state: typeof p.state === 'string' ? p.state : (p.state?.status || 'completed'),
+                                        args: p.args || p.state?.input || {},
+                                        result: p.result || p.state?.output
+                                    });
+                                }
+                            }
+
+                            return {
+                                id: m.id || crypto.randomUUID(),
+                                chat_id: chatId,
+                                role: m.role,
+                                content: text,
+                                reasoning: reasoning || undefined,
+                                tools: tools.length > 0 ? tools : undefined,
+                                created_at: m.created_at || new Date().toISOString()
+                            };
+                        });
+
+                        setMessages(mapped);
+                    }
+                }
             }
         } catch (err: any) {
             console.error('[useChat] Failed to load messages:', err);
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
         }
-    }, [chatId]);
+    }, [chatId, getSessionId]);
 
     useEffect(() => {
         if (!chatId) {
@@ -147,12 +208,17 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
 
                 // 3. Turn complete
                 if (evt.type === 'session.idle') {
+                    setMessages((prev) =>
+                        prev.map((m) =>
+                            m.metadata?.isStreaming ? { ...m, metadata: { ...m.metadata, isStreaming: false } } : m
+                        )
+                    );
                     activeTempMessageIdRef.current = null;
                     currentStreamedContentRef.current = '';
                     currentStreamedReasoningRef.current = '';
                     currentStreamedToolsRef.current = [];
                     setIsLoading(false);
-                    // Reload clean message history
+                    // Reload clean message history without wiping state if empty
                     loadMessages();
                 }
             } catch (err) {
@@ -219,19 +285,25 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                     const opencodeUrl = process.env.NEXT_PUBLIC_OPENCODE_URL || 'http://127.0.0.1:4096';
                     console.warn('[useChat] Cloud API failed, trying direct browser-to-daemon dispatch on:', opencodeUrl);
 
-                    // Direct client-side dispatch from browser to local OpenCode
-                    let sessionId = chatId;
-                    try {
-                        const sRes = await fetch(`${opencodeUrl}/session`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ title: content.slice(0, 30) })
-                        });
-                        if (sRes.ok) {
-                            const sData = await sRes.json();
-                            sessionId = sData.id || sessionId;
+                    // Direct client-side dispatch from browser to local OpenCode (1 Project = 1 Persistent Session)
+                    let sessionId = getSessionId();
+
+                    if (!sessionId) {
+                        try {
+                            const sRes = await fetch(`${opencodeUrl}/session`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ title: content.slice(0, 35) })
+                            });
+                            if (sRes.ok) {
+                                const sData = await sRes.json();
+                                sessionId = sData.id || chatId;
+                                setSessionId(sessionId);
+                            }
+                        } catch {
+                            sessionId = chatId;
                         }
-                    } catch {}
+                    }
 
                     res = await fetch(`${opencodeUrl}/session/${sessionId}/message`, {
                         method: 'POST',
@@ -239,13 +311,8 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                         body: JSON.stringify({
                             parts: [{ type: 'text', text: content }],
                             agent: forceAgent || undefined
-                        })
+                        }),
                     });
-
-                    if (!res.ok) {
-                        const errorData = await res.json().catch(() => ({}));
-                        throw new Error(errorData.error || 'Failed to dispatch message to OpenCode');
-                    }
                 }
             } catch (err: any) {
                 console.error('[useChat] Error sending message:', err);
@@ -253,7 +320,7 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
                 setIsLoading(false);
             }
         },
-        [chatId, forceAgent]
+        [chatId, forceAgent, getSessionId, setSessionId]
     );
 
     return {
@@ -261,7 +328,8 @@ export function useChat(chatId: string | null, onAgentChange?: (agent: any) => v
         isLoading,
         error,
         sendMessage,
+        loadMessages,
+        forceAgent,
         setForceAgent,
-        refreshMessages: loadMessages,
     };
 }
