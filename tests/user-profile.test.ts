@@ -1,20 +1,22 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { NextRequest } from 'next/server';
+import { GET, POST } from '../app/api/user-profile/route';
 
 describe('Seam: User Hardware Profile API', () => {
     test('Empty profile returns isComplete === false', async () => {
         // Reset to empty profile
-        await fetch('http://localhost:3000/api/user-profile', {
+        const resetReq = new NextRequest('http://localhost/api/user-profile', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 rawMarkdown: `# User Hardware Profile\n\n- **Skill Level**: [Not set]\n- **Preferred Microcontrollers**: [Not set]\n- **Available Tools**: [Not set]\n- **Component Inventory**: [Not set]\n`
             })
         });
+        await POST(resetReq);
 
-        const res = await fetch('http://localhost:3000/api/user-profile');
-        assert.equal(res.status, 200);
-        const data = await res.json();
+        const getRes = await GET();
+        assert.equal(getRes.status, 200);
+        const data = await getRes.json();
         assert.equal(data.isComplete, false);
     });
 
@@ -31,12 +33,12 @@ describe('Seam: User Hardware Profile API', () => {
             }
         };
 
-        const postRes = await fetch('http://localhost:3000/api/user-profile', {
+        const postReq = new NextRequest('http://localhost/api/user-profile', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
+        const postRes = await POST(postReq);
         assert.equal(postRes.status, 200);
         const postData = await postRes.json();
         assert.equal(postData.success, true);
@@ -45,7 +47,7 @@ describe('Seam: User Hardware Profile API', () => {
         assert.deepEqual(postData.profile.preferredMicrocontrollers, ['ESP32 (Wi-Fi / BLE)', 'Raspberry Pi Pico (RP2040)']);
 
         // Verify GET returns the saved data
-        const getRes = await fetch('http://localhost:3000/api/user-profile');
+        const getRes = await GET();
         const getData = await getRes.json();
         assert.equal(getData.isComplete, true);
         assert.equal(getData.profile.skillLevel, 'Intermediate');

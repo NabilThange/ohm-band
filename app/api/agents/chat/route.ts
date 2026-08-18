@@ -6,7 +6,7 @@ import fs from "node:fs";
 
 export const dynamic = 'force-dynamic';
 
-const OPENCODE_URL = process.env.OPENCODE_URL || "http://127.0.0.1:4096";
+const OPENCODE_URL = process.env.OPENCODE_URL || process.env.OPENCODE_SERVER_URL || "http://127.0.0.1:4096";
 
 export async function POST(req: NextRequest) {
     try {
