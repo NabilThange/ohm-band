@@ -101,6 +101,7 @@ export default function Message({ role, children, metadata, reasoning, tools }) 
                 ) : (
                     // AI messages: render with Markdown + BOM Card (Sequential Rendering)
                     <div className="flex flex-col gap-2">
+                        {(() => {
                             // 1. First parse artifacts (BOM, Context, Questions, Thinking) and get cleaned text
                             const {
                                 cleanedText: textWithCode,
