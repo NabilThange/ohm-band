@@ -21,6 +21,41 @@ Now let's build the firmware.`;
         assert.ok(parsed.cleanedText.includes("Now let's build the firmware."));
     });
 
+    test('parseMessageContent extracts <think> reasoning blocks out of message text', () => {
+        const raw = `<think>
+Analyzing the user's sensor requirements and ESP32 pin availability.
+</think>
+Here is the recommended circuit setup:`;
+
+        const parsed = parseMessageContent(raw);
+        assert.equal(parsed.extractedReasoning, "Analyzing the user's sensor requirements and ESP32 pin availability.");
+        assert.ok(!parsed.cleanedText.includes('<think>'));
+        assert.ok(parsed.cleanedText.includes('Here is the recommended circuit setup:'));
+    });
+
+    test('parseMessageContent extracts <questions> interactive questionnaire', () => {
+        const raw = `Let me ask a few quick questions to narrow down the design:
+<questions>
+[
+  {
+    "id": "power_source",
+    "text": "What power source do you want?",
+    "type": "single_select",
+    "options": ["USB-C 5V", "LiPo 3.7V"]
+  }
+]
+</questions>
+Let me know what you think!`;
+
+        const parsed = parseMessageContent(raw);
+        assert.equal(parsed.hasQuestions, true);
+        assert.ok(parsed.questions);
+        assert.equal(parsed.questions.questions.length, 1);
+        assert.equal(parsed.questions.questions[0].id, 'power_source');
+        assert.deepEqual(parsed.questions.questions[0].options, ['USB-C 5V', 'LiPo 3.7V']);
+        assert.ok(!parsed.cleanedText.includes('<questions>'));
+    });
+
     test('splitMessageIntoSegments extracts text and code segments with filenames', () => {
         const textWithCode = `Here is the header:
 \`\`\`cpp:include/config.h
@@ -82,7 +117,9 @@ def read_temp():
         };
 
         const formatted = formatAnswersForAgent(questions, answers);
-        assert.ok(formatted.includes('Which microcontroller are you using?: Raspberry Pi Pico W'));
-        assert.ok(formatted.includes('What is your target battery life?: 7 days continuous'));
+        assert.ok(formatted.includes('Which microcontroller are you using?'));
+        assert.ok(formatted.includes('Raspberry Pi Pico W'));
+        assert.ok(formatted.includes('What is your target battery life?'));
+        assert.ok(formatted.includes('7 days continuous'));
     });
 });

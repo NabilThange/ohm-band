@@ -191,7 +191,7 @@ export interface ReasoningContentProps
 
 export function ReasoningContent({
     children,
-    maxHeightClass = 'max-h-64 sm:max-h-72',
+    maxHeightClass = 'max-h-52 sm:max-h-56',
     className,
     ...props
 }: ReasoningContentProps) {
@@ -211,7 +211,7 @@ export function ReasoningContent({
         >
             <div
                 className={cn(
-                    'overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
+                    'overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border/70 scrollbar-track-transparent space-y-2',
                     maxHeightClass
                 )}
             >

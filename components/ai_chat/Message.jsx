@@ -101,13 +101,20 @@ export default function Message({ role, children, metadata, reasoning, tools }) 
                 ) : (
                     // AI messages: render with Markdown + BOM Card (Sequential Rendering)
                     <div className="flex flex-col gap-2">
-                        {(() => {
-                            const effectiveReasoning = reasoning || metadata?.reasoning;
-                            const effectiveTools = tools || metadata?.tools || [];
+                            // 1. First parse artifacts (BOM, Context, Questions, Thinking) and get cleaned text
+                            const {
+                                cleanedText: textWithCode,
+                                bomData,
+                                isStreamingBOM,
+                                extractedReasoning,
+                                hasQuestions: parsedHasQuestions,
+                                questions: parsedQuestions
+                            } = parseMessageContent(rawContent);
 
-                            // 1. First parse artifacts (BOM, Context) and get cleaned text (removes XML containers)
-                            // This preserves Markdown code blocks in the text for the next step.
-                            const { cleanedText: textWithCode, bomData, isStreamingBOM } = parseMessageContent(rawContent);
+                            const effectiveReasoning = reasoning || metadata?.reasoning || extractedReasoning;
+                            const effectiveTools = tools || metadata?.tools || [];
+                            const effectiveQuestions = questions || parsedQuestions;
+                            const effectiveHasQuestions = hasQuestions || parsedHasQuestions;
 
                             // 2. Split the text into segments (Text vs Code CodeBlocks)
                             const segments = splitMessageIntoSegments(textWithCode);
@@ -410,15 +417,15 @@ export default function Message({ role, children, metadata, reasoning, tools }) 
                                     })()}
 
                                     {/* Question Component - shown when agent needs clarification */}
-                                    {hasQuestions && questions && (
+                                    {effectiveHasQuestions && effectiveQuestions && (
                                         <QuestionComponent
-                                            questions={questions.questions}
+                                            questions={effectiveQuestions.questions}
                                             messageId={metadata?.id}
                                             initialAnswers={metadata?.answers || null}
                                             onSubmit={(answers) => {
                                                 // Format answers and send as new message
                                                 const formattedAnswers = formatAnswersForAgent(
-                                                    questions.questions,
+                                                    effectiveQuestions.questions,
                                                     answers
                                                 );
                                                 

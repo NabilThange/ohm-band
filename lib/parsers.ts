@@ -41,6 +41,14 @@ export interface ProjectContextData {
     prd: string | null;
 }
 
+export interface ParsedQuestion {
+    id: string;
+    text: string;
+    type: 'single_select' | 'multiple_select' | 'text' | 'textarea';
+    options?: string[];
+    required?: boolean;
+}
+
 export interface MessageSegment {
     type: 'text' | 'code';
     content: string;
@@ -52,19 +60,66 @@ export function parseMessageContent(rawContent: string): {
     cleanedText: string;
     bomData: BOMData | null;
     isStreamingBOM: boolean;
+    extractedReasoning?: string;
+    hasQuestions: boolean;
+    questions?: { questions: ParsedQuestion[] };
 } {
-    if (!rawContent) return { cleanedText: '', bomData: null, isStreamingBOM: false };
+    if (!rawContent) {
+        return { cleanedText: '', bomData: null, isStreamingBOM: false, hasQuestions: false };
+    }
 
-    // Remove legacy container tags if any exist
-    const cleaned = rawContent
+    let text = rawContent;
+    let extractedReasoning = '';
+    let parsedQuestions: ParsedQuestion[] | null = null;
+
+    // 1. Extract <think>...</think> reasoning blocks
+    const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
+    if (thinkMatch) {
+        extractedReasoning = thinkMatch[1].trim();
+        text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    } else {
+        // Also handle unclosed streaming <think> tags
+        const unclosedThink = text.match(/<think>([\s\S]*)$/i);
+        if (unclosedThink) {
+            extractedReasoning = unclosedThink[1].trim();
+            text = text.replace(/<think>[\s\S]*$/i, '').trim();
+        }
+    }
+
+    // 2. Extract <questions>...</questions> interactive questionnaire
+    const questionsMatch = text.match(/<questions>([\s\S]*?)<\/questions>/i);
+    if (questionsMatch) {
+        try {
+            const rawJson = questionsMatch[1].trim();
+            const parsed = JSON.parse(rawJson);
+            if (Array.isArray(parsed)) {
+                parsedQuestions = parsed.map((q: any, i: number) => ({
+                    id: q.id || `q_${i + 1}`,
+                    text: q.text || q.question || `Question ${i + 1}`,
+                    type: q.type || 'single_select',
+                    options: Array.isArray(q.options) ? q.options : [],
+                    required: q.required !== false
+                }));
+            }
+        } catch (e) {
+            console.warn('[Parsers] Failed to parse <questions> JSON:', e);
+        }
+        text = text.replace(/<questions>[\s\S]*?<\/questions>/gi, '').trim();
+    }
+
+    // 3. Remove legacy container tags if any exist
+    const cleaned = text
         .replace(/<BOM_CONTAINER>[\s\S]*?<\/BOM_CONTAINER>/g, '')
         .replace(/<CODE_CONTAINER>[\s\S]*?<\/CODE_CONTAINER>/g, '')
         .trim();
 
     return {
-        cleanedText: cleaned || rawContent,
+        cleanedText: cleaned,
         bomData: null,
         isStreamingBOM: false,
+        extractedReasoning: extractedReasoning || undefined,
+        hasQuestions: !!parsedQuestions && parsedQuestions.length > 0,
+        questions: parsedQuestions ? { questions: parsedQuestions } : undefined
     };
 }
 
@@ -128,8 +183,9 @@ export function formatAnswersForAgent(questions: any[], answers: Record<string, 
     return questions
         .map((q, i) => {
             const label = q.question || q.text || `Question ${i + 1}`;
-            const ans = answers[q.id] || answers[q.question] || answers[i] || 'Not answered';
-            return `${label}: ${ans}`;
+            const rawAns = answers[q.id] || answers[q.question] || answers[i] || 'Not answered';
+            const ansText = typeof rawAns === 'object' && rawAns?.text ? rawAns.text : String(rawAns);
+            return `**${label}**\nAnswer: ${ansText}`;
         })
         .join('\n\n');
 }
