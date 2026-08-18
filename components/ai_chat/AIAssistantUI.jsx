@@ -10,12 +10,8 @@ import GhostIconButton from "./GhostIconButton"
 import ThemeToggle from "./ThemeToggle"
 import { INITIAL_TEMPLATES, INITIAL_FOLDERS } from "./mockData"
 import { useChatList } from "@/lib/hooks/use-chat-list"
-import { ChatService } from "@/lib/db/chat"
 import { useChat } from "@/lib/hooks/use-chat"
-import { extractBOMFromMessage, extractCodeFromMessage, extractContextFromMessage, extractCodeBlocksFromMessage } from "@/lib/parsers"
-import { showAgentChangeToast } from "@/lib/agents/toast-notifications"
-import { ArtifactService } from "@/lib/db/artifacts"
-import { supabase } from "@/lib/supabase/client"
+import { showAgentChangeToast, showMakerProfileToast } from "@/lib/agents/toast-notifications"
 import { StageProgressBar } from "@/components/stages/StageProgressBar"
 import { StageOverrideButton } from "@/components/stages/StageOverrideButton"
 
@@ -56,6 +52,24 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
             localStorage.setItem("theme", theme)
         } catch { }
     }, [theme])
+
+    // Prompt user if Maker Profile is unconfigured
+    useEffect(() => {
+        const hasPrompted = sessionStorage.getItem("ohm-profile-prompted");
+        if (hasPrompted) return;
+
+        fetch('/api/user-profile')
+            .then(res => (res.ok ? res.json() : null))
+            .then(data => {
+                if (data && !data.isComplete) {
+                    sessionStorage.setItem("ohm-profile-prompted", "true");
+                    setTimeout(() => {
+                        showMakerProfileToast();
+                    }, 1200);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     // Sidebar State
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -119,37 +133,20 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
             .catch((err) => console.error('[AIAssistantUI] Failed to load project state:', err));
     }, [selectedId]);
 
-    // Realtime subscription: update stage badge when session row changes
+    // Reload project stage state when artifact changes occur
     useEffect(() => {
         if (!selectedId) return;
 
-        const stageChannel = supabase
-            .channel(`session_stage:${selectedId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'chat_sessions',
-                    filter: `chat_id=eq.${selectedId}`,
-                },
-                (payload) => {
-                    const newStage = payload.new?.project_stage;
-                    if (newStage && newStage !== projectState?.projectStage) {
-                        console.log(`[AIAssistantUI] 🎉 Stage advanced to: ${newStage}`);
-                        setProjectState((prev) => prev ? { ...prev, projectStage: newStage } : prev);
-                        // Reload full state to get updated artifact metadata
-                        fetch(`/api/agents/project-state?chatId=${selectedId}`)
-                            .then((res) => res.ok ? res.json() : null)
-                            .then((data) => { if (data) setProjectState(data); })
-                            .catch(() => {});
-                    }
-                }
-            )
-            .subscribe();
+        const reloadStage = () => {
+            fetch(`/api/agents/project-state?chatId=${selectedId}`)
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => { if (data) setProjectState(data); })
+                .catch(() => {});
+        };
 
-        return () => { supabase.removeChannel(stageChannel); };
-    }, [selectedId, projectState?.projectStage]);
+        window.addEventListener('ohm-artifact-updated', reloadStage);
+        return () => window.removeEventListener('ohm-artifact-updated', reloadStage);
+    }, [selectedId]);
 
     // Callback for agent changes - IMMEDIATELY called when orchestrator detects intent
     const handleAgentChange = useCallback((agent) => {
@@ -267,17 +264,20 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
         };
     }, [closedDrawers]); // Depend on closedDrawers to access latest state
 
-    // NEW: Load artifacts from database instead of parsing
+    // Load artifacts from local filesystem endpoints
     useEffect(() => {
         if (!selectedId) return;
 
         const loadArtifacts = async () => {
-            console.log('[AIAssistantUI] 📦 Loading artifacts from database for chat:', selectedId);
+            console.log('[AIAssistantUI] 📦 Loading artifacts from local disk for chat:', selectedId);
 
             try {
-                const types = ['context', 'mvp', 'prd', 'bom', 'code', 'wiring', 'budget', 'enclosure'];
+                const types = ['context', 'bom', 'code', 'wiring', 'budget', 'enclosure'];
                 const results = await Promise.all(
-                    types.map(type => ArtifactService.getLatestArtifact(selectedId, type))
+                    types.map(async (type) => {
+                        const res = await fetch(`/api/projects/${selectedId}/artifacts/${type}`);
+                        return res.ok ? await res.json() : null;
+                    })
                 );
 
                 const newArtifacts = {};
@@ -287,178 +287,65 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
 
                 setArtifacts(newArtifacts);
 
-                // Set legacy state for backwards compatibility
-                if (newArtifacts.bom?.version?.content_json) {
-                    // ponytail: Map DB field names (component, unit_price) to UI field names (name, estimatedCost)
-                    const bomContent = newArtifacts.bom.version.content_json;
+                // Set legacy drawer state
+                if (newArtifacts.bom?.components) {
+                    const bomContent = newArtifacts.bom;
                     const mappedBom = {
                         ...bomContent,
                         components: bomContent.components?.map(c => ({
                             ...c,
-                            name: c.component || c.name, // Support both field names
-                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0, // ?? handles null/undefined
-                            partNumber: c.partNumber || '' // Ensure partNumber exists
+                            name: c.component || c.name,
+                            estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
+                            partNumber: c.partNumber || ''
                         })) || []
                     };
                     setBomData(mappedBom);
                 }
-                if (newArtifacts.code?.version?.content_json) {
-                    setCodeData(newArtifacts.code.version.content_json);
+                if (newArtifacts.code?.files) {
+                    setCodeData(newArtifacts.code);
                 }
-                if (newArtifacts.context || newArtifacts.mvp || newArtifacts.prd) {
+                if (newArtifacts.context) {
                     setContextData({
-                        context: newArtifacts.context?.version?.content || null,
-                        mvp: newArtifacts.mvp?.version?.content || null,
-                        prd: newArtifacts.prd?.version?.content || null
+                        context: newArtifacts.context.context || null,
+                        mvp: newArtifacts.context.mvp || null,
+                        prd: newArtifacts.context.prd || null
                     });
                 }
 
-                console.log('[AIAssistantUI] ✅ Artifacts loaded:', {
+                console.log('[AIAssistantUI] ✅ Local disk artifacts loaded:', {
                     context: !!newArtifacts.context,
-                    mvp: !!newArtifacts.mvp,
-                    prd: !!newArtifacts.prd,
                     bom: !!newArtifacts.bom,
                     code: !!newArtifacts.code,
                     wiring: !!newArtifacts.wiring,
                     budget: !!newArtifacts.budget,
                     enclosure: !!newArtifacts.enclosure
                 });
-
-                // Auto-open drawer if we have NEW artifacts - but respect user's closed state
-                // Only open if: 1) drawer not in closed set, 2) no drawer currently active, 3) haven't auto-opened for this artifact yet
-                if (newArtifacts.context || newArtifacts.mvp || newArtifacts.prd) {
-                    // Get the latest artifact ID to track if we've already opened for it
-                    const latestContextArtifact = newArtifacts.context || newArtifacts.mvp || newArtifacts.prd;
-                    const artifactId = latestContextArtifact?.artifact_id;
-
-                    const hasAlreadyOpened = artifactId && autoOpenedArtifacts.current.has(artifactId);
-                    const shouldAutoOpen = !closedDrawers.has('context') && !activeTool && !hasAlreadyOpened;
-
-                    console.log('[AIAssistantUI] 🔍 Context artifacts exist. Should auto-open?', shouldAutoOpen, {
-                        artifactId,
-                        inClosedSet: closedDrawers.has('context'),
-                        activeToolExists: !!activeTool,
-                        alreadyOpened: hasAlreadyOpened
-                    });
-
-                    if (shouldAutoOpen && artifactId) {
-                        console.log('[AIAssistantUI] ✅ Auto-opening context drawer for artifact:', artifactId);
-                        autoOpenedArtifacts.current.add(artifactId);
-                        setActiveTool('context');
-                        setShowArtifacts(true);
-                    }
-                }
             } catch (error) {
-                console.error('[AIAssistantUI] ❌ Failed to load artifacts:', error);
+                console.error('[AIAssistantUI] ❌ Failed to load artifacts from disk:', error);
             }
         };
 
         loadArtifacts();
-    }, [selectedId, messages]); // Reload when messages change (indicates tool calls may have run)
 
-    // NEW: Subscribe to realtime artifact updates via Supabase
-    useEffect(() => {
-        if (!selectedId) return;
+        // Listen for live artifact updates emitted by OpenCode SSE
+        const handleArtifactUpdate = (e) => {
+            const detail = e.detail;
+            console.log('[AIAssistantUI] 🔔 Live artifact update event received:', detail);
+            loadArtifacts();
 
-        console.log('[AIAssistantUI] 🔴 Setting up realtime subscription for chat:', selectedId);
-
-        // Subscribe to artifact_versions table changes
-        const channel = supabase
-            .channel(`artifacts:${selectedId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'artifact_versions'
-                },
-                async (payload) => {
-                    console.log('[AIAssistantUI] 🔔 Realtime artifact update received:', payload);
-
-                    // Get the artifact_id from the new version
-                    const artifactId = payload.new.artifact_id;
-
-                    // Find which artifact this belongs to by querying artifacts table
-                    const { data: artifact } = await supabase
-                        .from('artifacts')
-                        .select('type, chat_id')
-                        .eq('id', artifactId)
-                        .single();
-
-                    if (artifact && artifact.chat_id === selectedId) {
-                        console.log(`[AIAssistantUI] ⭐ Refreshing ${artifact.type} artifact`);
-
-                        // Reload just this artifact type
-                        const updated = await ArtifactService.getLatestArtifact(selectedId, artifact.type);
-
-                        setArtifacts(prev => ({
-                            ...prev,
-                            [artifact.type]: updated
-                        }));
-
-                        // Update legacy state
-                        if (artifact.type === 'bom' && updated?.version?.content_json) {
-                            // ponytail: Map DB field names to UI field names (same as initial load)
-                            const bomContent = updated.version.content_json;
-                            const mappedBom = {
-                                ...bomContent,
-                                components: bomContent.components?.map(c => ({
-                                    ...c,
-                                    name: c.component || c.name,
-                                    estimatedCost: c.unit_price ?? c.estimatedCost ?? 0,
-                                    partNumber: c.partNumber || ''
-                                })) || []
-                            };
-                            setBomData(mappedBom);
-                        } else if (artifact.type === 'code' && updated?.version?.content_json) {
-                            setCodeData(updated.version.content_json);
-                        } else if (['context', 'mvp', 'prd'].includes(artifact.type)) {
-                            setContextData(prev => ({
-                                ...prev,
-                                [artifact.type]: updated?.version?.content || null
-                            }));
-                        }
-
-                        // Auto-open drawer for new artifacts - ONLY if not closed by user
-                        // Note: Immediate opening is now handled by stream events in useChat.
-                        // This serves as a backup/fallback for artifact updates that didn't trigger stream event
-                        console.log(`[AIAssistantUI] 🔓 Checking auto-open for ${artifact.type}`);
-
-                        let drawerToOpen = null;
-                        if (artifact.type === 'bom') drawerToOpen = 'bom';
-                        else if (artifact.type === 'code') drawerToOpen = 'code';
-                        else if (artifact.type === 'wiring') drawerToOpen = 'wiring';
-                        else if (artifact.type === 'budget') drawerToOpen = 'budget';
-                        else if (['context', 'mvp', 'prd'].includes(artifact.type)) drawerToOpen = 'context';
-
-                        if (drawerToOpen) {
-                            const hasAlreadyOpened = artifactId && autoOpenedArtifacts.current.has(artifactId);
-
-                            if (closedDrawers.has(drawerToOpen)) {
-                                console.log(`[AIAssistantUI] 🛑 Drawer ${drawerToOpen} is in closed set. Ignoring auto-open.`);
-                            } else if (hasAlreadyOpened) {
-                                console.log(`[AIAssistantUI] 🛑 Already auto-opened for artifact ${artifactId}. Ignoring.`);
-                            } else {
-                                console.log(`[AIAssistantUI] ✅ Auto-opening drawer (realtime): ${drawerToOpen} for artifact ${artifactId}`);
-                                if (artifactId) {
-                                    autoOpenedArtifacts.current.add(artifactId);
-                                }
-                                setActiveTool(drawerToOpen);
-                                setShowArtifacts(true);
-                            }
-                        }
-                    }
+            // Auto-open corresponding drawer if not in closed set
+            if (detail?.type) {
+                const drawer = detail.type;
+                if (!closedDrawers.has(drawer)) {
+                    setActiveTool(drawer);
+                    setShowArtifacts(true);
                 }
-            )
-            .subscribe((status) => {
-                console.log('[AIAssistantUI] 🔌 Subscription status:', status);
-            });
-
-        return () => {
-            console.log('[AIAssistantUI] 🔴 Unsubscribing from realtime');
-            supabase.removeChannel(channel);
+            }
         };
-    }, [selectedId, activeTool, closedDrawers]);
+
+        window.addEventListener('ohm-artifact-updated', handleArtifactUpdate);
+        return () => window.removeEventListener('ohm-artifact-updated', handleArtifactUpdate);
+    }, [selectedId, closedDrawers]);
 
     useEffect(() => {
         if (initialChatId) setSelectedId(initialChatId)
@@ -525,280 +412,69 @@ export default function AIAssistantUI({ initialPrompt, initialChatId, userContex
     // Actions
     async function handleCreateNewChat(promptText = "New Project") {
         try {
-            const newChat = await ChatService.createChat(DEFAULT_USER_ID, promptText.slice(0, 30))
+            const newChatId = crypto.randomUUID();
+            const title = promptText.slice(0, 30) || "New Hardware Project";
 
-            // Update local state immediately so useChat can start loading
-            setSelectedId(newChat.id)
-            setSidebarOpen(false)
+            // Create local filesystem project
+            await fetch('/api/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatId: newChatId, title })
+            });
 
-            // Send initial message before navigating, to avoid aborting the fetch
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('ohm-project-created'));
+            }
+
+            setSelectedId(newChatId);
+            setSidebarOpen(false);
+
+            // Send initial message to OpenCode
             if (promptText && promptText !== "New Project") {
-                console.log('[AIAssistantUI] Sending initial message via streaming API...');
-                const res = await fetch('/api/agents/chat', {
+                console.log('[AIAssistantUI] Sending initial message to OpenCode...');
+                fetch('/api/agents/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: promptText,
-                        chatId: newChat.id
+                        chatId: newChatId
                     })
-                })
-
-                if (!res.ok) {
-                    // Try to get error message from non-streaming error response
-                    try {
-                        const errorData = await res.json();
-                        throw new Error(errorData.error || `API error: ${res.status}`);
-                    } catch {
-                        throw new Error(`API error: ${res.status}`);
-                    }
-                }
-
-                // Handle SSE stream - parse and handle events for the initial message
-                const reader = res.body?.getReader();
-                if (reader) {
-                    console.log('[AIAssistantUI] Processing stream for initial message...');
-                    const decoder = new TextDecoder();
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        // Parse the stream to handle agent notifications, etc.
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-
-                        for (const line of lines) {
-                            if (!line.trim() || !line.startsWith('data: ')) continue;
-
-                            try {
-                                const data = JSON.parse(line.slice(6));
-
-                                // Handle text chunks (AI response content)
-                                if (data.type === 'text' && data.content) {
-                                    console.log('[AIAssistantUI] 📝 Received text chunk:', data.content.substring(0, 50), '...');
-                                    // Text chunks are being streamed but we don't need to handle them here
-                                    // The orchestrator will persist the complete response to the database
-                                    // and refreshMessages() will load it
-                                }
-
-                                // Handle agent selection for initial message
-                                if (data.type === 'agent_selected' && data.agent) {
-                                    console.log('[AIAssistantUI] 🚀 Initial message agent:', data.agent.name);
-                                    handleAgentChange(data.agent);
-                                }
-
-                                // Handle tool calls for initial message
-                                if (data.type === 'tool_call') {
-                                    const toolName = data.toolCall?.name;
-                                    if (toolName) {
-                                        // Map tool to drawer and open it
-                                        const toolDrawerMap = {
-                                            // Legacy tools
-                                            'open_context_drawer': 'context',
-                                            'update_context': 'context',
-                                            'update_mvp': 'context',
-                                            'update_prd': 'context',
-                                            'update_bom': 'bom',
-                                            'open_bom_drawer': 'bom',
-                                            'add_code_file': 'code',
-                                            'open_code_drawer': 'code',
-                                            'update_wiring': 'wiring',
-                                            'open_wiring_drawer': 'wiring',
-                                            'update_budget': 'budget',
-                                            'open_budget_drawer': 'budget',
-                                            // New unified tools
-                                            'open_drawer': (args) => args?.drawer, // Returns drawer name directly
-                                        };
-                                        
-                                        let drawer = toolDrawerMap[toolName];
-                                        
-                                        // Handle new 'write' tool - extract artifact_type
-                                        if (toolName === 'write') {
-                                            const args = toolCall.function?.arguments || toolCall.arguments;
-                                            const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
-                                            const artifactType = parsedArgs?.artifact_type;
-                                            
-                                            const artifactDrawerMap = {
-                                                'context': 'context',
-                                                'mvp': 'context',
-                                                'prd': 'context',
-                                                'bom': 'bom',
-                                                'code': 'code',
-                                                'wiring': 'wiring',
-                                                'budget': 'budget',
-                                                'enclosure': 'enclosure',
-                                            };
-                                            drawer = artifactDrawerMap[artifactType];
-                                        }
-                                        
-                                        // Handle new 'open_drawer' tool - extract drawer parameter
-                                        if (toolName === 'open_drawer') {
-                                            const args = toolCall.function?.arguments || toolCall.arguments;
-                                            const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
-                                            drawer = parsedArgs?.drawer;
-                                        }
-                                        
-                                        if (drawer) {
-                                            console.log(`[AIAssistantUI] 🔓 Opening drawer from initial message: ${drawer}`);
-                                            window.dispatchEvent(new CustomEvent('open-drawer', { detail: { drawer } }));
-                                        }
-                                    }
-                                }
-                            } catch (e) {
-                                // Ignore parse errors in partial chunks
-                            }
-                        }
-                    }
-                    console.log('[AIAssistantUI] Stream processed successfully');
-                }
+                }).catch(err => console.error('[AIAssistantUI] Error dispatching initial message:', err));
             }
 
-            // After the message has been accepted, update the URL for deep-linking
-            router.push(`/build/${newChat.id}`)
-
-            // CRITICAL: Force message reload AFTER navigation
-            // This ensures useChat has initialized and realtime subscription is ready
-            // Longer delay needed because:
-            // 1. router.push is async and needs to complete
-            // 2. useChat hook needs to reinitialize with new chatId
-            // 3. Realtime subscription needs to be established
-            // 4. Messages need to be inserted into DB
-            console.log('[AIAssistantUI] ⏳ Waiting for navigation and subscription setup...');
-            console.log('[AIAssistantUI] 📊 Current selectedId:', selectedId, 'New chatId:', newChat.id);
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Reload messages to ensure they're visible
-            console.log('[AIAssistantUI] 🔄 Forcing message reload from database...');
-            console.log('[AIAssistantUI] 📊 refreshMessages available?', !!refreshMessages);
-            if (refreshMessages) {
-                try {
-                    await refreshMessages();
-                    console.log('[AIAssistantUI] ✅ Messages refreshed successfully');
-                } catch (err) {
-                    console.error('[AIAssistantUI] ❌ Failed to refresh messages:', err);
-                }
-            } else {
-                console.warn('[AIAssistantUI] ⚠️ refreshMessages not available yet');
-            }
-
-            // Trigger title generation in background
-            if (promptText && promptText !== "New Project") {
-                console.log('[AIAssistantUI] 🏷️ Triggering title generation...');
-                fetch('/api/agents/title', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chatId: newChat.id,
-                        message: promptText
-                    })
-                }).then(res => res.json())
-                    .then(data => {
-                        if (data.title) {
-                            console.log('[AIAssistantUI] 🏷️ Title generated:', data.title);
-                            // Update newChat with generated title for immediate UI feedback
-                            newChat.title = data.title;
-                            // Note: The realtime subscription in useChatList will also sync this from DB
-                        }
-                    })
-                    .catch(err => console.error('Title generation failed:', err));
-            }
+            router.push(`/build/${newChatId}`);
         } catch (e) {
-            console.error("Failed to create chat or send initial message:", e)
-            alert(`Could not create chat: ${e.message}`)
+            console.error("Failed to create chat:", e);
+            alert(`Could not create project: ${e.message}`);
         }
     }
 
-    // NEW: Handle creating chat with a specific chatId (for instant navigation)
     async function handleCreateChatWithId(chatId, promptText) {
         try {
-            console.log('[AIAssistantUI] Creating chat session with chatId:', chatId)
-            
-            // Create chat in database with the provided chatId
-            const newChat = await ChatService.createChatWithId(DEFAULT_USER_ID, chatId, promptText.slice(0, 30))
+            console.log('[AIAssistantUI] Creating project with specific chatId:', chatId);
+            const title = promptText.slice(0, 30) || "New Hardware Project";
 
-            // Update local state immediately
-            setSelectedId(chatId)
-            setSidebarOpen(false)
+            await fetch('/api/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatId, title })
+            });
 
-            // Send initial message
-            if (promptText) {
-                console.log('[AIAssistantUI] Sending initial message...')
-                const res = await fetch('/api/agents/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: promptText,
-                        chatId: chatId
-                    })
-                })
-
-                if (!res.ok) {
-                    try {
-                        const errorData = await res.json()
-                        throw new Error(errorData.error || `API error: ${res.status}`)
-                    } catch {
-                        throw new Error(`API error: ${res.status}`)
-                    }
-                }
-
-                // Handle SSE stream
-                const reader = res.body?.getReader()
-                if (reader) {
-                    const decoder = new TextDecoder()
-                    while (true) {
-                        const { done, value } = await reader.read()
-                        if (done) break
-
-                        const chunk = decoder.decode(value)
-                        const lines = chunk.split('\n')
-
-                        for (const line of lines) {
-                            if (!line.trim() || !line.startsWith('data: ')) continue
-
-                            try {
-                                const data = JSON.parse(line.slice(6))
-
-                                if (data.type === 'agent_selected' && data.agent) {
-                                    handleAgentChange(data.agent)
-                                }
-
-                                if (data.type === 'tool_call') {
-                                    const toolName = data.toolCall?.name
-                                    if (toolName) {
-                                        // Handle tool drawer opening
-                                        console.log('[AIAssistantUI] Tool called:', toolName)
-                                    }
-                                }
-                            } catch (e) {
-                                // Ignore parse errors
-                            }
-                        }
-                    }
-                }
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('ohm-project-created'));
             }
 
-            // Wait for messages to be persisted
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            setSelectedId(chatId);
+            setSidebarOpen(false);
 
-            // Reload messages
-            if (refreshMessages) {
-                await refreshMessages()
-            }
-
-            // Generate title in background
             if (promptText) {
-                fetch('/api/agents/title', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chatId: chatId,
-                        message: promptText
-                    })
-                }).catch(err => console.error('Title generation failed:', err))
+                console.log('[AIAssistantUI] Sending initial message via sendMessage:', promptText);
+                // Call useChat sendMessage directly to display user message and start live response stream
+                sendMessage(promptText);
             }
         } catch (e) {
-            console.error("Failed to create chat with chatId:", e)
-            alert(`Could not create chat: ${e.message}`)
+            console.error("Failed to create chat with chatId:", e);
+            alert(`Could not create project: ${e.message}`);
         }
     }
 

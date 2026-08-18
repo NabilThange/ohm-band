@@ -5,8 +5,6 @@ import { CheckIcon, RefreshCwIcon, XIcon } from "@/components/ui/animated-icons"
 import { Pencil } from "lucide-react"
 import Message from "./Message"
 import { cn as cls, timeAgo } from "@/lib/utils"
-import { useChat } from "@/lib/hooks/use-chat"
-import { ChatService } from "@/lib/db/chat"
 import { ChatPromptInput } from "@/components/shared/ChatPromptInput"
 
 import OhmLoadingAnimation from "../ui/ohm-loading"
@@ -61,20 +59,26 @@ Reflect any changes made during the chat in these documents.`;
             }
 
             if (!chatId) {
-                // Create new chat first
-                const newChat = await ChatService.createChat("00000000-0000-0000-0000-000000000000", content.slice(0, 30))
+                const newId = crypto.randomUUID();
+                await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId: newId, title: content.slice(0, 30) })
+                });
 
-                // Send initial message BEFORE notifying parent, to avoid aborting fetch on navigation
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('ohm-project-created'));
+                }
+
                 await fetch('/api/agents/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: finalContent, chatId: newChat.id })
-                })
+                    body: JSON.stringify({ message: finalContent, chatId: newId })
+                });
 
-                // Now update parent-selected chat (may trigger router.push in AIAssistantUI)
-                onChatCreated?.(newChat.id)
+                onChatCreated?.(newId);
             } else {
-                await sendMessage(finalContent)
+                await sendMessage(finalContent);
             }
         } catch (e) {
             console.error(e)
@@ -152,7 +156,12 @@ Reflect any changes made during the chat in these documents.`;
 
                                 {messages.map((m) => (
                                     <div key={m.id} className="space-y-2">
-                                        <Message role={m.role} metadata={{ id: m.id, agent_name: m.agent_name, agentId: m.agent_id, ...m.metadata }}>
+                                        <Message
+                                            role={m.role}
+                                            reasoning={m.reasoning}
+                                            tools={m.tools}
+                                            metadata={{ id: m.id, agent_name: m.agent_name, agentId: m.agent_id, reasoning: m.reasoning, tools: m.tools, parts: m.parts, ...m.metadata }}
+                                        >
                                             {m.content}
                                         </Message>
                                     </div>

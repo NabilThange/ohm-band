@@ -28,7 +28,8 @@ export default function ChatsPage() {
         router.push('/build')
     }
 
-    const formatDate = (dateString: string) => {
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return "Recently"
         const date = new Date(dateString)
         const now = new Date()
         const diffMs = now.getTime() - date.getTime()

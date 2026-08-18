@@ -1,8 +1,18 @@
-import type { AgentType } from '@/lib/agents/config';
-
 // ─────────────────────────────────────────────
 // Core Types
 // ─────────────────────────────────────────────
+
+export type AgentType =
+  | 'conversational'
+  | 'projectInitializer'
+  | 'bomGenerator'
+  | 'budgetOptimizer'
+  | 'wiringSpecialist'
+  | 'codeGenerator'
+  | 'debugger'
+  | 'enclosureGenerator'
+  | 'datasheetAnalyzer'
+  | 'circuitVerifier';
 
 export type ProjectStage = 'planning' | 'design' | 'build' | 'fix';
 
@@ -19,11 +29,11 @@ export type ArtifactKey =
 export interface StageConfig {
   /** Short description shown in the progress bar */
   description: string;
-  /** Longer goal statement used in orchestrator prompt */
+  /** Longer goal statement */
   goal: string;
   /** Artifacts that MUST exist before the stage can advance */
   requiredArtifacts: ArtifactKey[];
-  /** Agents the orchestrator may route to in this stage */
+  /** Agents eligible in this stage */
   eligibleAgents: AgentType[];
   /** Support-only agents (force-selectable by user, not auto-routed) */
   supportAgents?: AgentType[];
@@ -65,9 +75,9 @@ export const STAGE_CONFIG: Record<ProjectStage, StageConfig> = {
   design: {
     description: 'Choose parts and optimize costs',
     goal: 'Select components and validate the bill of materials',
-    requiredArtifacts: ['bom'], // budget is OPTIONAL
+    requiredArtifacts: ['bom'],
     eligibleAgents: ['bomGenerator', 'budgetOptimizer'],
-    supportAgents: ['datasheetAnalyzer'], // force-only, not auto-routed
+    supportAgents: ['datasheetAnalyzer'],
     nextStage: 'build',
   },
 
@@ -75,14 +85,14 @@ export const STAGE_CONFIG: Record<ProjectStage, StageConfig> = {
     description: 'Get connection instructions and working firmware',
     goal: 'Generate wiring diagrams and firmware code',
     requiredArtifacts: ['wiring', 'code'],
-    eligibleAgents: ['wiringDiagram', 'codeGenerator', 'enclosureGenerator'],
+    eligibleAgents: ['wiringSpecialist', 'codeGenerator', 'enclosureGenerator'],
     nextStage: 'fix',
   },
 
   fix: {
     description: 'Troubleshoot, verify, and enhance your build',
     goal: 'Debug hardware/software issues and optionally generate enclosures',
-    requiredArtifacts: [], // terminal — no gate
+    requiredArtifacts: [],
     eligibleAgents: ['debugger', 'circuitVerifier', 'enclosureGenerator'],
     nextStage: null,
   },

@@ -8,9 +8,11 @@ import { CodeBlock } from "@/components/ui/code-block"
 import { Message as UIMessage, MessageContent, MessageAvatar } from "@/components/ui/message"
 import { getAgentIdentity, findAgentIdByName, AGENT_IDENTITIES } from "@/lib/agents/agent-identities"
 import { QuestionComponent } from "./QuestionComponent"
-import { formatAnswersForAgent } from "@/lib/agents/question-parser"
+import { formatAnswersForAgent } from "@/lib/parsers"
+import { Reasoning, ReasoningTrigger, ReasoningContent } from "./Reasoning"
+import ToolExecution from "./ToolExecution"
 
-export default function Message({ role, children, metadata }) {
+export default function Message({ role, children, metadata, reasoning, tools }) {
     const isUser = role === "user"
 
     // Convert children to string for parsing
@@ -100,6 +102,9 @@ export default function Message({ role, children, metadata }) {
                     // AI messages: render with Markdown + BOM Card (Sequential Rendering)
                     <div className="flex flex-col gap-2">
                         {(() => {
+                            const effectiveReasoning = reasoning || metadata?.reasoning;
+                            const effectiveTools = tools || metadata?.tools || [];
+
                             // 1. First parse artifacts (BOM, Context) and get cleaned text (removes XML containers)
                             // This preserves Markdown code blocks in the text for the next step.
                             const { cleanedText: textWithCode, bomData, isStreamingBOM } = parseMessageContent(rawContent);
@@ -109,8 +114,27 @@ export default function Message({ role, children, metadata }) {
 
                             return (
                                 <>
+                                    {/* OpenCode Reasoning / Thinking Process */}
+                                    {(effectiveReasoning || metadata?.isStreaming) && (
+                                        <Reasoning
+                                            isStreaming={metadata?.isStreaming}
+                                            duration={metadata?.reasoningDuration ? Math.round(metadata.reasoningDuration / 1000) : undefined}
+                                        >
+                                            <ReasoningTrigger />
+                                            <ReasoningContent>{effectiveReasoning || ''}</ReasoningContent>
+                                        </Reasoning>
+                                    )}
+
+                                    {/* OpenCode Native Tools */}
+                                    {effectiveTools && effectiveTools.length > 0 && (
+                                        <ToolExecution
+                                            tools={effectiveTools}
+                                            isStreaming={metadata?.isStreaming}
+                                        />
+                                    )}
                                     {segments.map((segment, index) => {
                                         if (segment.type === 'text') {
+                                            if (!segment.content || !segment.content.trim()) return null;
                                             return (
                                                 <div key={index} className="prose prose-sm max-w-none prose-headings:mt-3 prose-headings:mb-2 prose-p:my-1.5 prose-pre:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 text-foreground [&_*]:text-foreground dark:prose-invert">
                                                     <ReactMarkdown

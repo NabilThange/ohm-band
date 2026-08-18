@@ -30,15 +30,35 @@ export function HeroPromptInput({ variant = 'landing' }: HeroPromptInputProps) {
         setIsSubmitting(true);
         const userMessage = message.trim();
         
-        // Generate proper UUID for chat ID
-        const chatId = crypto.randomUUID();
-        
-        // Clear input immediately for better UX
+        try {
+            const res = await fetch('/api/agents/title', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const slug = data.slug || data.chatId;
+                setMessage('');
+                startTransition(() => {
+                    router.push(`/build/${slug}?initialPrompt=${encodeURIComponent(userMessage)}`);
+                });
+                return;
+            }
+        } catch (err) {
+            console.error("Failed to generate project title:", err);
+        }
+
+        // Fallback slug
+        const fallbackSlug = userMessage
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .slice(0, 35) || 'hardware-project';
+
         setMessage('');
-        
-        // Use startTransition for smoother navigation with View Transitions
         startTransition(() => {
-            router.push(`/build/${chatId}?initialPrompt=${encodeURIComponent(userMessage)}`);
+            router.push(`/build/${fallbackSlug}?initialPrompt=${encodeURIComponent(userMessage)}`);
         });
         
         setIsSubmitting(false);

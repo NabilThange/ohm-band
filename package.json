@@ -4,11 +4,11 @@
   "description": "The path of least resistance - An intelligent workspace that bridges the gap between software and silicon",
   "private": true,
   "scripts": {
-    "dev": "set NODE_OPTIONS=--max-old-space-size=4096 && next dev --turbopack",
+    "dev": "concurrently \"opencode serve --port 4096 --hostname 127.0.0.1\" \"next dev\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:stage-gating": "node lib/stages/__tests__/stage-verification.test.js"
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@ark-ui/react": "^5.30.0",
@@ -56,11 +56,13 @@
     "@types/three": "^0.184.1",
     "agentation": "^3.0.2",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.5",
     "eslint": "^8",
     "eslint-config-next": "15.1.6",
     "postcss": "^8",
     "react-syntax-highlighter": "^16.1.0",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }

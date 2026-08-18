@@ -57,7 +57,7 @@ export function AgentChatInterface({ initialPrompt }: AgentChatInterfaceProps) {
         if (lastMsg && lastMsg.role === 'assistant') {
             const extracted = extractCodeBlocksFromMessage(lastMsg.content);
             if (extracted && extracted.files.length > 0) {
-                setDrawerCodeData({ files: extracted.files.map(f => ({ path: f.filename, content: f.content })) });
+                setDrawerCodeData({ files: extracted.files });
             }
         }
     }, [messages]);

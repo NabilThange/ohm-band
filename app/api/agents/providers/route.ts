@@ -1,46 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAllAvailableModels, PROVIDER_CONFIGS, type ProviderType } from '@/lib/agents/provider-config';
+import { NextResponse } from 'next/server';
 
-/**
- * GET /api/agents/providers
- * 
- * Returns all available LLM providers and their models
- * Used by the ProviderSelector component to populate dropdowns
- */
-export async function GET(req: NextRequest) {
-    try {
-        // Build provider list with relevant metadata
-        const providers = Object.keys(PROVIDER_CONFIGS).map(key => {
-            const config = PROVIDER_CONFIGS[key as ProviderType];
-            return {
-                id: key,
-                name: config.name,
-                baseURL: config.baseURL,
-                capabilities: {
-                    streaming: config.supportsStreaming,
-                    vision: config.supportsVision,
-                    tools: config.supportsTools
-                },
-                rateLimit: config.rateLimit
-            };
-        });
-
-        // Get all available models across all providers
-        const models = getAllAvailableModels();
-
-        // Get default provider from environment
-        const defaultProvider = process.env.LLM_PROVIDER || 'openrouter';
-
-        return NextResponse.json({ 
-            providers, 
-            models,
-            defaultProvider
-        });
-    } catch (error: any) {
-        console.error('[GET /api/agents/providers] Error:', error);
-        return NextResponse.json(
-            { error: error.message || 'Failed to fetch providers' }, 
-            { status: 500 }
-        );
-    }
+export async function GET() {
+    return NextResponse.json({
+        providers: [
+            { id: 'opencode', name: 'OpenCode Daemon (Local)', capabilities: { streaming: true, vision: true, tools: true } },
+            { id: 'groq', name: 'Groq Cloud (Fast)', capabilities: { streaming: true, vision: false, tools: true } },
+        ],
+        models: [
+            { id: 'opencode-default', name: 'OpenCode Agent Engine', provider: 'opencode', capabilities: { streaming: true, vision: true, tools: true }, contextWindow: 128000, pricing: { free: true } },
+            { id: 'groq/llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', provider: 'groq', capabilities: { streaming: true, vision: false, tools: true }, contextWindow: 128000, pricing: { free: true } },
+        ],
+        active: 'opencode',
+    });
 }

@@ -1,11 +1,12 @@
 "use client"
 import { ChevronDownIcon } from "@/components/ui/animated-icons"
-import { Asterisk, MoreHorizontal, Menu, MessageSquare } from "lucide-react"
+import { Asterisk, MoreHorizontal, Menu, MessageSquare, Wrench } from "lucide-react"
 import { useState, useEffect } from "react"
 import GhostIconButton from "./GhostIconButton"
 import { getAllAgentIdentities, getAgentIdentity } from "@/lib/agents/agent-identities"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import UserProfileModal from "./UserProfileModal"
 
 export default function Header({
     chatId,
@@ -44,8 +45,17 @@ export default function Header({
         }
     }, [currentAgent]);
 
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+    useEffect(() => {
+        const handleOpenProfile = () => setIsProfileModalOpen(true);
+        window.addEventListener('open-user-profile-modal', handleOpenProfile);
+        return () => window.removeEventListener('open-user-profile-modal', handleOpenProfile);
+    }, []);
+
     return (
         <div className="sticky top-0 z-30 flex items-center gap-2 bg-background/80 px-4 py-3 backdrop-blur">
+            <UserProfileModal open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen} />
             {sidebarCollapsed && (
                 <button
                     onClick={() => setSidebarOpen(true)}
@@ -169,11 +179,19 @@ export default function Header({
 
             <div className="ml-auto flex items-center gap-2">
                 <button
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold tracking-tight hover:border-primary/60 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all text-foreground shadow-sm"
+                    aria-label="Maker Hardware Profile"
+                >
+                    <Wrench className="h-3.5 w-3.5 text-primary" />
+                    <span>Maker Profile</span>
+                </button>
+                <button
                     onClick={() => router.push('/chats')}
-                    className="hidden md:inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm font-semibold tracking-tight hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    className="hidden md:inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold tracking-tight hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                     aria-label="View All Chats"
                 >
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare className="h-3.5 w-3.5" />
                     <span>Recent Chats</span>
                 </button>
                 <GhostIconButton label="More">

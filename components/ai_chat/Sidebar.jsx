@@ -635,24 +635,23 @@ export default function Sidebar({
                 createNewChat={createNewChat}
             />
 
-            {activeTool === 'budget' && <BudgetDrawer isOpen={true} onClose={() => setActiveTool(null)} budgetData={artifacts?.budget?.version?.content_json} />}
+            {activeTool === 'budget' && <BudgetDrawer isOpen={true} onClose={() => setActiveTool(null)} budgetData={artifacts?.budget?.version?.content_json || artifacts?.budget} />}
             {activeTool === 'components' && <ComponentDrawer isOpen={true} onClose={() => setActiveTool(null)} />}
-            {activeTool === 'bom' && <BOMDrawer isOpen={true} onClose={() => setActiveTool(null)} bomData={artifacts?.bom?.version?.content_json || bomData} />}
+            {activeTool === 'bom' && <BOMDrawer isOpen={true} onClose={() => setActiveTool(null)} bomData={bomData || artifacts?.bom?.version?.content_json || artifacts?.bom} />}
             {activeTool === 'wiring' && (
                 <WiringDrawer
                     isOpen={true}
                     onClose={() => setActiveTool(null)}
-                    artifactId={artifacts?.wiring?.version?.id}
-                    initialUrl={artifacts?.wiring?.version?.fritzing_url}
-                    initialStatus={artifacts?.wiring?.version?.diagram_status}
-                    wiringData={artifacts?.wiring?.version?.content_json}
-                    diagramSvg={artifacts?.wiring?.version?.diagram_svg}
+                    artifactId={artifacts?.wiring?.version?.id || 'local-wiring'}
+                    initialUrl={artifacts?.wiring?.version?.fritzing_url || null}
+                    initialStatus={artifacts?.wiring?.version?.diagram_status || null}
+                    wiringData={artifacts?.wiring?.connections ? artifacts.wiring : (artifacts?.wiring?.version?.content_json || artifacts?.wiring)}
+                    diagramSvg={artifacts?.wiring?.diagram_svg || artifacts?.wiring?.version?.diagram_svg}
                 />
             )}
-            {activeTool === 'code' && <CodeDrawer isOpen={true} onClose={() => setActiveTool(null)} codeData={artifacts?.code?.version?.content_json || codeData} />}
-            {activeTool === 'enclosure' && <EnclosureDrawer isOpen={true} onClose={() => setActiveTool(null)} enclosureData={artifacts?.enclosure?.version?.content_json} />}
-            {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData || { context: artifacts?.context?.version?.content, mvp: artifacts?.mvp?.version?.content, prd: artifacts?.prd?.version?.content }} />}
-            {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData || { context: artifacts?.context?.version?.content, mvp: artifacts?.mvp?.version?.content, prd: artifacts?.prd?.version?.content }} />}
+            {activeTool === 'code' && <CodeDrawer isOpen={true} onClose={() => setActiveTool(null)} codeData={codeData || artifacts?.code?.version?.content_json || artifacts?.code} />}
+            {activeTool === 'enclosure' && <EnclosureDrawer isOpen={true} onClose={() => setActiveTool(null)} enclosureData={artifacts?.enclosure?.version?.content_json || artifacts?.enclosure} />}
+            {activeTool === 'context' && <ContextDrawer isOpen={true} onClose={() => setActiveTool(null)} contextData={contextData || (artifacts?.context?.context || artifacts?.context?.prd ? artifacts.context : { context: artifacts?.context?.version?.content, mvp: artifacts?.mvp?.version?.content, prd: artifacts?.prd?.version?.content })} />}
         </>
     )
 }

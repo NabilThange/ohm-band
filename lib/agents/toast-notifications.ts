@@ -173,5 +173,17 @@ export function showToolCallToast(toolName: string) {
     console.log('[Toast Debug] 📊 Total time from call to creation:', (toastEndTime - callTime).toFixed(2), 'ms');
 }
 
+/**
+ * Show a toast recommending the user configure their maker profile
+ */
+export function showMakerProfileToast() {
+    if (typeof window === 'undefined') return;
+    getToaster().info({
+        title: "Configure Maker Profile 🛠️",
+        description: "Set your available tools, preferred microcontrollers & spare parts for tailored designs.",
+        duration: 7000,
+    });
+}
+
 // Export toaster getter for ToastProvider
 export { getToaster };

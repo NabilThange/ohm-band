@@ -12,19 +12,12 @@ export interface AgentIdentity {
 }
 
 export const AGENT_IDENTITIES: Record<string, AgentIdentity> = {
-  orchestrator: {
-    name: "Traffic Controller",
-    avatar: "/avatar/orchestator.svg",
-    icon: "🎯",
-    role: "Routes queries to the right specialist",
-    model: "Claude Sonnet 4.5"
-  },
   projectInitializer: {
     name: "Project Architect",
     avatar: "/avatar/Project_Architect.svg",
     icon: "🏛️",
     role: "Transforms ideas into structured project plans",
-    model: "Claude Opus 4.5"
+    model: "DeepSeek V4"
   },
   conversational: {
     name: "Lead Engineer",
@@ -98,11 +91,11 @@ export const AGENT_IDENTITIES: Record<string, AgentIdentity> = {
 export function getAgentIdentity(agentId: string | null | undefined): AgentIdentity {
   if (!agentId || agentId === 'thinking...' || !AGENT_IDENTITIES[agentId]) {
     return {
-      name: "AI Assistant",
-      avatar: "/avatar/orchestator.svg",  // Use orchestrator avatar as default (not default.svg)
-      icon: "🤖",
-      role: "General AI Assistant",
-      model: "Claude"
+      name: "Project Architect",
+      avatar: "/avatar/Project_Architect.svg",
+      icon: "🏛️",
+      role: "Lead Hardware Architect",
+      model: "DeepSeek V4"
     };
   }
   return AGENT_IDENTITIES[agentId];
